@@ -21,6 +21,13 @@ GN是Chromium、Fuchsia等工程使用的编译系统，它可以生成C/C++、R
 
 我猜测，GN是Generate Ninja的缩写。
 
+说明
+
+> 1. [GN主页](https://gn.googlesource.com/gn/+/master)
+> 2. [GN手册](https://gn.googlesource.com/gn/+/main/docs/reference.md)
+> 3. GN的[QuickStart](https://gn.googlesource.com/gn/+/main/docs/quick_start.md)
+> 4. GN的[Q&A](https://gn.googlesource.com/gn/+/main/docs/faq.md)
+
 
 
 ## 2、安装GN
