@@ -206,7 +206,206 @@ Hello, world
 
 ### (3) 从0创建GN工程
 
-TODO
+#### a. 将gn命令导入shell中
+
+
+
+`.zshrc`
+
+```shell
+export PATH="$PATH:$HOME/GitHub_Projects/HelloGN/gn/out"
+```
+
+
+
+#### b. 创建gn工程
+
+```shell
+$ tree -a .
+.
+├── .gn
+├── BUILD.gn
+├── build
+│   ├── BUILDCONFIG.gn
+│   └── toolchains
+│       └── BUILD.GN
+└── main.cpp
+
+2 directories, 5 files
+```
+
+
+
+说明
+
+> `.gitignore`
+
+
+
+#### c. `.gn`文件
+
+```properties
+buildconfig = "//build/BUILDCONFIG.gn"
+```
+
+
+
+
+
+#### d. `build/BUILDCONFIG.gn`文件
+
+```properties
+if (target_os == "") {
+  target_os = host_os
+}
+if (target_cpu == "") {
+  target_cpu = host_cpu
+}
+if (current_cpu == "") {
+  current_cpu = target_cpu
+}
+if (current_os == "") {
+  current_os = target_os
+}
+
+is_linux = host_os == "linux" && current_os == "linux" && target_os == "linux"
+is_mac = host_os == "mac" && current_os == "mac" && target_os == "mac"
+
+set_default_toolchain("//build/toolchains:gcc")
+```
+
+
+
+#### e. `build/toolchains/BUIDL.gn`文件
+
+```properties
+# Copyright 2014 The Chromium Authors. All rights reserved.
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+
+toolchain("gcc") {
+  tool("cc") {
+    depfile = "{{output}}.d"
+    command = "gcc -MMD -MF $depfile {{defines}} {{include_dirs}} {{cflags}} {{cflags_c}} -c {{source}} -o {{output}}"
+    depsformat = "gcc"
+    description = "CC {{output}}"
+    outputs =
+        [ "{{source_out_dir}}/{{target_output_name}}.{{source_name_part}}.o" ]
+  }
+
+  tool("cxx") {
+    depfile = "{{output}}.d"
+    command = "g++ -MMD -MF $depfile {{defines}} {{include_dirs}} {{cflags}} {{cflags_cc}} -c {{source}} -o {{output}}"
+    depsformat = "gcc"
+    description = "CXX {{output}}"
+    outputs =
+        [ "{{source_out_dir}}/{{target_output_name}}.{{source_name_part}}.o" ]
+  }
+
+  tool("alink") {
+    command = "rm -f {{output}} && ar rcs {{output}} {{inputs}}"
+    description = "AR {{target_output_name}}{{output_extension}}"
+
+    outputs =
+        [ "{{target_out_dir}}/{{target_output_name}}{{output_extension}}" ]
+    default_output_extension = ".a"
+    output_prefix = "lib"
+  }
+
+  tool("solink") {
+    soname = "{{target_output_name}}{{output_extension}}"  # e.g. "libfoo.so".
+    sofile = "{{output_dir}}/$soname"
+    rspfile = soname + ".rsp"
+    if (is_mac) {
+      os_specific_option = "-install_name @executable_path/$sofile"
+      rspfile_content = "{{inputs}} {{solibs}} {{libs}}"
+    } else {
+      os_specific_option = "-Wl,-soname=$soname"
+      rspfile_content = "-Wl,--whole-archive {{inputs}} {{solibs}} -Wl,--no-whole-archive {{libs}}"
+    }
+
+    command = "g++ -shared {{ldflags}} -o $sofile $os_specific_option @$rspfile"
+
+    description = "SOLINK $soname"
+
+    # Use this for {{output_extension}} expansions unless a target manually
+    # overrides it (in which case {{output_extension}} will be what the target
+    # specifies).
+    default_output_extension = ".so"
+
+    # Use this for {{output_dir}} expansions unless a target manually overrides
+    # it (in which case {{output_dir}} will be what the target specifies).
+    default_output_dir = "{{root_out_dir}}"
+
+    outputs = [ sofile ]
+    link_output = sofile
+    depend_output = sofile
+    output_prefix = "lib"
+  }
+
+  tool("link") {
+    outfile = "{{target_output_name}}{{output_extension}}"
+    rspfile = "$outfile.rsp"
+    if (is_mac) {
+      command = "g++ {{ldflags}} -o $outfile @$rspfile {{solibs}} {{libs}}"
+    } else {
+      command = "g++ {{ldflags}} -o $outfile -Wl,--start-group @$rspfile {{solibs}} -Wl,--end-group {{libs}}"
+    }
+    description = "LINK $outfile"
+    default_output_dir = "{{root_out_dir}}"
+    rspfile_content = "{{inputs}}"
+    outputs = [ outfile ]
+  }
+
+  tool("stamp") {
+    command = "touch {{output}}"
+    description = "STAMP {{output}}"
+  }
+
+  tool("copy") {
+    command = "cp -af {{source}} {{output}}"
+    description = "COPY {{source}} {{output}}"
+  }
+}
+```
+
+
+
+
+
+#### f. `BUILD.gn`文件
+
+
+
+```properties
+executable("hello") {
+  sources = [
+    "main.cpp",
+  ]
+}
+```
+
+
+
+#### g. 生成配置并编译
+
+
+
+```shell
+$ gn gen out  
+Done. Made 1 targets from 3 files in 5ms
+$ ninja -C out
+ninja: Entering directory `out'
+[2/2] LINK hello
+$ out/hello 
+Hello, World!
+```
+
+
+
+
+
+
 
 https://www.topcoder.com/thrive/articles/Introduction%20to%20Build%20Tools%20GN%20&%20Ninja
 
