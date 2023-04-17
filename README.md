@@ -206,11 +206,17 @@ Hello, world
 
 ### (3) 从0创建GN工程
 
+本文的步骤大概参考这篇文章[^9]，略有一些不同。
+
+说明
+
+> 这篇文章[^10]也是很好入门创建GN工程，内容和本文是差不多的。
+
+
+
 #### a. 将gn命令导入shell中
 
-
-
-`.zshrc`
+由于gn命令是编译出来的可执行文件，这里将gn命令导入zsh中，配置`.zshrc`，如下
 
 ```shell
 export PATH="$PATH:$HOME/GitHub_Projects/HelloGN/gn/out"
@@ -234,25 +240,30 @@ $ tree -a .
 2 directories, 5 files
 ```
 
-
+简单gn工程的模板，可以参考上面的结构。下面会一一介绍这些配置文件。
 
 说明
 
-> `.gitignore`
+> 1. gn工程的`.gitignore`，可以直接参考gn仓库的`.gitignore`，不用自己手动写
+> 2. 用于编译的配置，都放在build文件夹下面
 
 
 
 #### c. `.gn`文件
 
+`.gn`文件是根目录配置文件，一般很简单内容，如下
+
 ```properties
 buildconfig = "//build/BUILDCONFIG.gn"
 ```
 
-
+上面用于指定gn命令从哪里读取配置，这里指定的路径是相对于根目录的`build/BUILDCONFIG.gn`
 
 
 
 #### d. `build/BUILDCONFIG.gn`文件
+
+`BUILDCONFIG.gn`文件是gn命令读取的配置文件。
 
 ```properties
 if (target_os == "") {
@@ -274,9 +285,13 @@ is_mac = host_os == "mac" && current_os == "mac" && target_os == "mac"
 set_default_toolchain("//build/toolchains:gcc")
 ```
 
+这里参考官方gn仓库的examples文件夹下的simple_build例子使用的`BUILDCONFIG.gn`文件。它的位置是`gn/examples/simple_build/build/BUILDCONFIG.gn`
 
 
-#### e. `build/toolchains/BUIDL.gn`文件
+
+#### e. `build/toolchains/BUILD.gn`文件
+
+这里`BUILD.gn`文件不同于其他地方的`BUILD.gn`文件，主要配置编译工具，如下
 
 ```properties
 # Copyright 2014 The Chromium Authors. All rights reserved.
@@ -369,13 +384,17 @@ toolchain("gcc") {
 }
 ```
 
+上面的内容也是参考官方gn仓库的examples文件夹下的simple_build例子使用的`BUILD.gn`文件。它的位置是`gn/examples/simple_build/build/toolchain/BUILD.gn`。具体语法这里不做介绍。
 
+说明
+
+> 这里的`BUILD.gn`使用到在`BUILDCONFIG.gn`中定义的变量is_mac
 
 
 
 #### f. `BUILD.gn`文件
 
-
+应用程序或者静态/动态库的编译文件，也是命名为`BUILD.gn`文件，这里编译一个可执行文件hello，使用main.cpp作为源文件。
 
 ```properties
 executable("hello") {
@@ -385,11 +404,30 @@ executable("hello") {
 }
 ```
 
+说明
+
+> 一般来说，配置好gn工程，后续维护都在这个`BUILD.gn`文件，其他配置文件不会经常改动。
+
+
+
+main.cpp内容，如下
+
+```cpp
+#include <iostream>
+
+using namespace std;
+
+int main(int argc, const char * argv[]) {
+    std::cout << "Hello, World!" << std::endl;
+    return 0;
+}
+```
+
 
 
 #### g. 生成配置并编译
 
-
+完成上面的配置，组合使用gn和ninja命令，如下
 
 ```shell
 $ gn gen out  
@@ -401,13 +439,17 @@ $ out/hello
 Hello, World!
 ```
 
+说明
+
+> 1. 没有生成out文件夹，需要使用gn来生成，out文件夹主要包含ninja的编译配置文件和编译输出的产物
+> 2. 如果gn命令使用过，后续编译可以直接使用ninja命令
+> 3. out文件夹一般无需提交到git仓库，也可以随时清理，然后重新编译
 
 
 
 
 
 
-https://www.topcoder.com/thrive/articles/Introduction%20to%20Build%20Tools%20GN%20&%20Ninja
 
 https://blog.simplypatrick.com/posts/2016/01-23-gn/
 
@@ -833,6 +875,9 @@ https://blog.simplypatrick.com/posts/2012/08-18-ninja-a-small-build-system/
 [^6]:https://ninja-build.org/
 [^7]:https://ninja-build.org/manual.html
 [^8]:https://blog.simplypatrick.com/posts/2012/08-18-ninja-a-small-build-system/
+
+[^9]:https://www.topcoder.com/thrive/articles/Introduction%20to%20Build%20Tools%20GN%20&%20Ninja
+[^10]:https://blog.simplypatrick.com/posts/2016/01-23-gn/
 
 
 
