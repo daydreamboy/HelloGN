@@ -1,0 +1,7 @@
+cflags = -Wall
+
+rule cc
+  command = gcc $cflags -c $in -o $out
+
+build some/file/in/a/faraway/subdir/foo.o: cc some/file/in/a/faraway/subdir/foo/foo.c
+build foo: phony some/file/in/a/faraway/subdir/foo.o

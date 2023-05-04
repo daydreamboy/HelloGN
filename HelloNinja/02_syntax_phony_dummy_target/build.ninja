@@ -1,0 +1,4 @@
+rule touch
+  command = touch $out
+build file_that_always_exists.dummy: touch
+build dummy_target_to_follow_a_pattern: phony file_that_always_exists.dummy

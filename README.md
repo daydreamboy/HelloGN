@@ -856,9 +856,176 @@ $ brew install ninja
 
 ### (2) 使用Ninja
 
-TODO
+参考官方文档[^7]可以了解如何使用Ninja，以及`build.ninja`的语法。
 
-https://blog.simplypatrick.com/posts/2012/08-18-ninja-a-small-build-system/
+运行`ninja`命令，默认会在当前目录下查找`build.ninja`文件，并且编译所有过期的targets。也可以指定特定的target。
+
+举个`build.ninja`的例子，如下
+
+```shell
+cflags = -Wall
+
+rule cc
+  command = gcc $cflags -c $in -o $out
+
+build foo.o: cc foo.c
+```
+
+在`build.ninja`文件中，支持build语句和rule语句。
+
+* rule语句，用于设置短名称，简化很长的命令行，例如上面的cc rule，实际对应是`gcc $cflags -c $in -o $out`命令行
+* build语句，用于描述如何使用rule来编译target（也称为output文件）
+
+官方描述Ninja会生成一个关于输入文件和输出文件的有向图，`build.ninja`文件的内容就描述这个有向图。
+
+* rule语句，描述如何产生有向图中的边，即输入文件和输出文件
+* build语句，描述工程中的依赖关系，我推测类似多个`.o`文件链接成一个可执行文件，那么这个build语句描述的是这个可执行文件依赖多个`.o`文件
+
+官方文档的描述[^7]，如下
+
+> Ninja evaluates a graph of dependencies between files, and runs whichever commands are necessary to make your build target up to date as determined by file modification times. If you are familiar with Make, Ninja is very similar.
+>
+> Conceptually, `build` statements describe the dependency graph of your project, while `rule` statements describe how to generate the files along a given edge of the graph.
+
+了解上面的设计概念，有助于理解`build.ninja`核心语法，build语句和rule语句。
+
+
+
+#### a. 变量
+
+`build.ninja`中可以定义变量，在上面的例子中，如下
+
+```shell
+cflags = -Wall
+
+rule cc
+  command = gcc $cflags -c $in -o $out
+```
+
+变量的引用在等号的右边，使用`$`符号作为前缀，也可以使用花括号的形式，例如${in}。
+
+这里定义了自定义变量cflags。
+
+说明
+
+> Ninja也提供内置变量，例如上面in变量和out变量，不同于自定义的变量cflags
+
+
+
+#### b. rule语句
+
+rule语句用于设置短名称的命令行，以`rule <name>`格式单独一行，后面跟着多行类似`variable = value`的格式。
+
+这里的variable是Ninja提供的内置变量，例如上面例子中command变量，不需要$符号。而在value部分，也有内置变量，例如上面例子中的in变量和out变量。
+
+Ninja的内置变量，可以参考下面这个表格，更多详细内容，参考官方文档[^7]
+
+| 变量名                   | 作用                                             |
+| ------------------------ | ------------------------------------------------ |
+| command (required)       | 需要运行的命令行。每个rule仅包含一个command声明  |
+| depfile                  |                                                  |
+| msvc_deps_prefix         |                                                  |
+| description              | command的描述。使用`-v`运行ninja，会打印这个描述 |
+| dyndep                   |                                                  |
+| generator                |                                                  |
+| in                       | 空格分隔的输入文件列表                           |
+| in_newline               | 和in一样，但是使用换行符作为分隔                 |
+| out                      | 空格分隔的输出文件列表                           |
+| restat                   |                                                  |
+| rspfile, rspfile_content |                                                  |
+
+
+
+#### c. build语句
+
+build语句描述输入文件和输出文件的关系。它以build关键词开头，格式是`build outputs: rulename inputs`。这个声明描述的是所有输出文件来源自输入文件，当输入文件缺失或者发生变更时，Ninja执行rule会重新生成这些输出文件。
+
+build语句后面可以跟着一组key = value，用于修改rule语句中的变量。举个例子，如下
+
+```shell
+cflags = -Wall -Werror
+rule cc
+  command = gcc $cflags -c $in -o $out
+
+# If left unspecified, builds get the outer $cflags.
+build foo.o: cc foo.c
+
+# But you can shadow variables like cflags for a particular build.
+build special.o: cc special.c
+  cflags = -Wall
+
+# The variable was only shadowed for the scope of special.o;
+# Subsequent build lines get the outer (original) cflags.
+build bar.o: cc bar.c
+```
+
+上面有三个build语句，在第二个build语句后面，修改了cflags变量的值，而且仅对第二个build语句产生效果。第一个和第三个build语句，都使用原始的cflags变量的值。
+
+
+
+#### d. phony rule
+
+phony rule是内置的rule，类似上面自定义cc rule，但不需要使用rule声明。
+
+官方文档[^7]使用phony rule，做一些特殊用途
+
+* 创建target别名
+* 创建dummy target
+
+
+
+创建target别名，适用于target名字比较长的情况。举个例子，如下
+
+```shell
+cflags = -Wall
+
+rule cc
+  command = gcc $cflags -c $in -o $out
+
+build some/file/in/a/faraway/subdir/foo.o: cc some/file/in/a/faraway/subdir/foo/foo.c
+build foo: phony some/file/in/a/faraway/subdir/foo.o
+```
+
+`some/file/in/a/faraway/subdir/foo.o`名字比较长，使用phony rule重新创建一个名为foo的target，当执行下面命令
+
+```shell
+$ ninja foo
+```
+
+实际会执行第一个build语句。
+
+> 示例见02_syntax_phony_alias
+
+
+
+创建dummy target，和创建别名实际是一样的。举个例子，如下
+
+```shell
+rule touch
+  command = touch $out
+build file_that_always_exists.dummy: touch
+build dummy_target_to_follow_a_pattern: phony file_that_always_exists.dummy
+```
+
+这里touch rule没有输入文件。
+
+> 示例见02_syntax_phony_dummy_target
+
+
+
+
+
+
+
+### (3) 使用Python代码生成build.ninja文件
+
+在Nina的源码库中，`misc/ninja_syntax.py`提供Python模块，用于生成ninja文件，类似下面这样python代码
+
+```python
+ninja.rule(name='foo', command='bar', depfile='$out.d')
+```
+
+
 
 
 
