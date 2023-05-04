@@ -1037,8 +1037,6 @@ default bar
 
 
 
-
-
 ### (3) 使用Python代码生成build.ninja文件
 
 在Nina的源码库中，`misc/ninja_syntax.py`提供Python模块，用于生成ninja文件，类似下面这样python代码
@@ -1048,6 +1046,14 @@ ninja.rule(name='foo', command='bar', depfile='$out.d')
 ```
 
 
+
+### (4) `.ninja_log`文件
+
+每个`build.ninja`文件在执行ninja命令后，会生成一个log文件，名为`.ninja_log`文件，它位于root目录中。这个log文件会记录执行的command，当`build.ninja`文件的内容发生变化时，再次执行ninja命令，会重新编译。
+
+说明
+
+> 使用`builddir`变量可以指定`.ninja_log`文件所在的文件夹
 
 
 
