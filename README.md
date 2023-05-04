@@ -1013,6 +1013,28 @@ build dummy_target_to_follow_a_pattern: phony file_that_always_exists.dummy
 
 
 
+#### e. default taget语句
+
+没有default target语句时，执行ninja命令，会默认把所有target执行一遍。使用default关键词可以指定哪些target作为默认执行。
+
+举个例子，如下
+
+```shell
+rule touch
+  command = touch $out
+
+build foo: touch
+build bar: touch
+build baz: touch
+
+default baz
+default bar
+```
+
+当执行ninja命令时，会编译baz和bar，而不会编译foo。
+
+> 示例见03_syntax_default_target
+
 
 
 
