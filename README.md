@@ -143,6 +143,8 @@ Hello from the tutorial.
 * 使用`ninja`命令，生成可执行文件
 * 执行可执行文件
 
+> 如果不使用官方仓库的simple_build例子，可以参考HelloWorld工程
+
 
 
 ### (2) GN编译静态库和动态库
