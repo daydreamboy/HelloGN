@@ -8,6 +8,7 @@ executable("hello") {
   deps = [
     ":hello_shared",
     ":hello_static",
+    ":hello_static_cpp",
   ]
 }
 
@@ -24,5 +25,12 @@ static_library("hello_static") {
   sources = [
     "hello_static.cc",
     "hello_static.h",
+  ]
+}
+
+static_library("hello_static_cpp") {
+  sources = [
+    "hello_world_imp.cpp",
+    "HelloWorld.hpp",
   ]
 }
