@@ -1,3 +1,6 @@
 [submodule "gn"]
 	path = gn
 	url = https://gn.googlesource.com/gn
+[submodule "gn-build"]
+	path = gn-build
+	url = git@github.com:daydreamboy/gn-build.git

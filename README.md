@@ -798,7 +798,7 @@ template("idl") {
 }
 ```
 
-使用idl模板，相当于创建一个模板实例，如下
+使用idl模板（后缀名为`.gni`），相当于创建一个模板实例，如下
 
 ```c
 import("//tools/idl_compiler.gni")
