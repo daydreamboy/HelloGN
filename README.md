@@ -289,6 +289,16 @@ set_default_toolchain("//build/toolchains:gcc")
 
 这里参考官方gn仓库的examples文件夹下的simple_build例子使用的`BUILDCONFIG.gn`文件。它的位置是`gn/examples/simple_build/build/BUILDCONFIG.gn`
 
+`BUILDCONFIG.gn`是GN入口配置文件，它的作用[^11]，如下
+
+> \# This is the master GN build configuration. This file is loaded after the
+\# build args (args.gn) for the build directory and after the toplevel ".gn"
+\# file (which points to this file as the build configuration).
+\#
+\# This file will be executed and the resulting context will be used to execute
+\# every other file in the build. So variables declared here (that don't start
+\# with an underscore) will be implicitly global.
+
 
 
 #### e. `build/toolchains/BUILD.gn`文件
@@ -818,11 +828,47 @@ template("idl") {
 }
 ```
 
+TODO: https://chromium.googlesource.com/chromium/src/build/+/refs/heads/main/docs/writing_gn_templates.md
 
 
 
+## 4、GN配置文件模板
 
-## 4、Ninja
+使用GN可以配置各个编译工具链，实际上这些工具链的配置，根据各个平台，大部分是一样的，因此有人提供了一套配置文件，git仓库是https://github.com/timniederhausen/gn-build
+
+这里介绍如何使用gn-build的测试工程。
+
+* 将gn-build切到testsrc分支，获取作者的测试代码，并拷贝到UseGNBuildTest文件夹下
+
+* 配置软链接，如下
+
+  ```shell
+  $ cd UseGNBuildTest
+  $ ln -s ../gn-build build
+  ```
+
+  这里会创建一个软链接文件夹，指向本地的gn-build仓库
+
+* 执行编译命令
+
+  ```shell
+  $ cd UseGNBuildTest
+  $ gn gen out
+  $ ninja -C out
+  ```
+
+说明
+
+> 这里创建软链接的目的是
+>
+> * 共享gn-build仓库，不然每个GN工程下面需要一份gn-build
+> * `.gn`文件中配置`buildconfig = "../gn-build/config/BUILDCONFIG.gn"`这种向外层引用的方式，执行`gn gen out`会报错
+
+> 示例工程，见UseGNBuildTest
+
+
+
+## 5、Ninja
 
 Ninja是小型的编译系统，它有两个特点：
 
@@ -1076,5 +1122,5 @@ ninja.rule(name='foo', command='bar', depfile='$out.d')
 [^9]:https://www.topcoder.com/thrive/articles/Introduction%20to%20Build%20Tools%20GN%20&%20Ninja
 [^10]:https://blog.simplypatrick.com/posts/2016/01-23-gn/
 
-
+[^11]:https://github.com/timniederhausen/gn-build/blob/master/config/BUILDCONFIG.gn#L6
 
