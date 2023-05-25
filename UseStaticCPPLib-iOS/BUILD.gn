@@ -1,0 +1,14 @@
+# Copyright 2014 The Chromium Authors. All rights reserved.
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+
+static_library("hello_ios_static_cpp") {
+  sources = [
+    "hello_world_impl.cpp",
+    "hello_world.hpp",
+  ]
+
+  public_deps = [
+    "//third_party/fml:fml",
+  ]
+}
