@@ -13,7 +13,7 @@ GN是Chromium、Fuchsia等工程使用的编译系统，它可以生成C/C++、R
 >
 > GN can generate Ninja build files for C, C++, Rust, Objective C, and Swift source on most popular platforms. 
 
-实际上，GN针对Ninja的编译系统，然后使用Ninja编译生成可执行文件。
+实际上，GN是针对Ninja的元编译系统，然后使用Ninja编译生成文件（可执行文件等）。
 
 官方文档对GN的定义[^1]，如下
 
@@ -115,7 +115,7 @@ group("tools") {
 说明
 
 > 1. BUILD.gn文件中，有其他配置，可以暂时注释掉
-> 2. `"//tutorial"`属于label写法，相当于`//tutorial:tutorial`，意思是在tutorial文件夹下找到BUILD.gn，然后在该文件中找到`tutorial`target。
+> 2. `"//tutorial"`属于label写法，相当于`//tutorial:tutorial`，意思是在tutorial文件夹下找到BUILD.gn，然后在该文件中找到名为`tutorial`的target。
 
 上面创建一个组，用于管理编译依赖，官方文档对group的描述[^3]，如下
 
@@ -143,7 +143,7 @@ Hello from the tutorial.
 * 使用`ninja`命令，生成可执行文件
 * 执行可执行文件
 
-> 如果不使用官方仓库的simple_build例子，可以参考HelloWorld工程
+> 如果不想使用官方仓库的simple_build例子，可以参考HelloWorld工程
 
 
 
@@ -202,13 +202,13 @@ $ out/hello
 Hello, world
 ```
 
-这个例子中没有运行`gn`命令，实际自动运行gn，重新生成ninja编译文件，参考输出Regenerating ninja files
+这个例子中没有运行`gn`命令，实际上会自动运行gn，重新生成ninja编译文件，因为有输出Regenerating ninja files的提示。
 
 
 
 ### (3) 从0创建GN工程
 
-本文的步骤大概参考这篇文章[^9]，略有一些不同。
+上面已经介绍如何使用GN，但是都是从官方example工程中直接使用的。这里介绍如何从0创建GN工程，本文的步骤大概参考这篇文章[^9]，略有一些不同。
 
 说明
 
@@ -216,9 +216,9 @@ Hello, world
 
 
 
-#### a. 将gn命令导入shell中
+#### a. 将gn命令导入shell环境中
 
-由于gn命令是编译出来的可执行文件，这里将gn命令导入zsh中，配置`.zshrc`，如下
+由于gn命令是编译出来的可执行文件，为了使用方便，可以导入shell环境中。这里将gn命令导入zsh中，配置`.zshrc`，如下
 
 ```shell
 export PATH="$PATH:$HOME/GitHub_Projects/HelloGN/gn/out"
@@ -242,18 +242,18 @@ $ tree -a .
 2 directories, 5 files
 ```
 
-简单gn工程的模板，可以参考上面的结构。下面会一一介绍这些配置文件。
+上面是简单的gn工程模板。下面会一一介绍这些配置文件。
 
 说明
 
 > 1. gn工程的`.gitignore`，可以直接参考gn仓库的`.gitignore`，不用自己手动写
-> 2. 用于编译的配置，都放在build文件夹下面
+> 2. 用于编译的配置文件，参考官方的做法，都放在build文件夹下面。实际上，build文件夹也可以命名为其他名字。
 
 
 
 #### c. `.gn`文件
 
-`.gn`文件是根目录配置文件，一般很简单内容，如下
+`.gn`文件是工程，根目录配置文件，一般很简单内容，如下
 
 ```properties
 buildconfig = "//build/BUILDCONFIG.gn"
@@ -289,7 +289,7 @@ set_default_toolchain("//build/toolchains:gcc")
 
 这里参考官方gn仓库的examples文件夹下的simple_build例子使用的`BUILDCONFIG.gn`文件。它的位置是`gn/examples/simple_build/build/BUILDCONFIG.gn`
 
-`BUILDCONFIG.gn`是GN入口配置文件，它的作用[^11]，如下
+`BUILDCONFIG.gn`是GN入口配置文件，它的作用是[^11]
 
 > \# This is the master GN build configuration. This file is loaded after the
 \# build args (args.gn) for the build directory and after the toplevel ".gn"
@@ -298,6 +298,8 @@ set_default_toolchain("//build/toolchains:gcc")
 \# This file will be executed and the resulting context will be used to execute
 \# every other file in the build. So variables declared here (that don't start
 \# with an underscore) will be implicitly global.
+
+`BUILDCONFIG.gn`会在加载`args.gn`和`.gn`之后再加载，而且每次执行文件build，都会使用这个文件提供context，因此可以在该文件定义全局变量。
 
 
 
@@ -832,7 +834,211 @@ TODO: https://chromium.googlesource.com/chromium/src/build/+/refs/heads/main/doc
 
 
 
-## 4、GN配置文件模板
+## 4、GN手册
+
+GN手册[^7]主要分为下面几个部分
+
+* gn命令参数(Command)
+* Target声明(Target declarations)。例如action、executable、shared_library等
+* 内置函数(Buildfile functions)。例如print等
+* 内置预定义变量。例如current_cpu等
+* 需用户设置的变量。例如cflags等
+* 其他话题
+
+本文就按照上面结构来介绍
+
+
+
+### (1) gn命令参数(Command)
+
+gn命令参数，有下面几个
+
+```shell
+$ gn help
+	analyze: Analyze which targets are affected by a list of files.
+  args: Display or configure arguments declared by the build.
+  check: Check header dependencies.
+  clean: Cleans the output directory.
+  clean_stale: Cleans the stale output files from the output directory.
+  desc: Show lots of insightful information about a target or config.
+  format: Format .gn files.
+  gen: Generate ninja files.
+  help: Does what you think.
+  ls: List matching targets.
+  meta: List target metadata collection results.
+  outputs: Which files a source/target make.
+  path: Find paths between two targets.
+  refs: Find stuff referencing a target or file.
+```
+
+#### a. analyze
+
+analyze用于分析某个target会被哪些文件影响。
+
+命令格式如下
+
+```shell
+$ gn analyze <out_dir> <input_path> <output_path>
+```
+
+* out_dir，是out文件夹的路径
+* input_path，是输入参数的JSON文件。例如test_targets字段是数组，包含需要检测的target
+* output_path，是输出文件
+
+TODO
+
+
+
+#### b. args
+
+args用于显示和配置参数。
+
+命令格式如下
+
+```shell
+$ gn args <out_dir> [--list] [--short] [--args] [--overrides-only]
+```
+
+常见的几种用法，如下
+
+
+
+##### 打开args.gn文件
+
+```shell
+$ gn args <out_dir>
+```
+
+
+
+##### 显示args参数
+
+```shell
+$ gn args <out_dir> --list[=<exact_arg>] [--short] [--overrides-only] [--json]
+```
+
+举个例子，如下
+
+```shell
+$ cd HelloWorld
+$ gn args out --list
+current_cpu
+    Current value (from the default) = ""
+      (Internally set; try `gn help current_cpu`.)
+
+current_os
+    Current value (from the default) = ""
+      (Internally set; try `gn help current_os`.)
+
+host_cpu
+    Current value (from the default) = "x64"
+      (Internally set; try `gn help host_cpu`.)
+
+host_os
+    Current value (from the default) = "mac"
+      (Internally set; try `gn help host_os`.)
+
+target_cpu
+    Current value (from the default) = ""
+      (Internally set; try `gn help target_cpu`.)
+
+target_os
+    Current value (from the default) = ""
+      (Internally set; try `gn help target_os`.)
+      
+$ gn args out --list --short
+current_cpu = ""
+current_os = ""
+host_cpu = "x64"
+host_os = "mac"
+target_cpu = ""
+target_os = ""
+```
+
+
+
+#### c. check
+
+TODO
+
+
+
+#### d. clean
+
+clean用于清理out文件夹下面的内容，但是不会删除args.gn以及ninja部分文件。
+
+命令格式，如下
+
+```shell
+$ gn clean <out_dir>...
+```
+
+官方文档描述[^7]，如下
+
+> Deletes the contents of the output directory except for args.gn and
+>   creates a Ninja build environment sufficient to regenerate the build.
+
+
+
+举个例子，如下
+
+```shell
+$ cd HelloWorld
+$ tree out
+out
+├── Debug
+├── args.gn
+├── build.ninja
+├── build.ninja.d
+├── build.ninja.stamp
+├── hello
+├── obj
+│   ├── hello.main.o
+│   └── hello.ninja
+└── toolchain.ninja
+
+2 directories, 8 files
+$ gn clean out
+$ tree out    
+out
+├── args.gn
+├── build.ninja
+└── build.ninja.d
+
+0 directories, 3 files
+```
+
+
+
+#### e. clean_stale
+
+clean_stale用于过期的文件。
+
+命名格式，如下
+
+```shell
+$ gn clean_stale [--ninja-executable=...] <out_dir>...
+```
+
+官方文档描述[^7]，如下
+
+> Removes the no longer needed output files from the build directory and prunes
+> their records from the ninja build log and dependency database. These are
+> output files that were generated from previous builds, but the current build
+> graph no longer references them.
+>
+> This command requires a ninja executable of at least version 1.10.0. The
+> executable must be provided by the --ninja-executable switch.
+
+
+
+
+
+
+
+
+
+## 5、GN配置文件模板
 
 使用GN可以配置各个编译工具链，实际上这些工具链的配置，根据各个平台，大部分是一样的，因此有人提供了一套配置文件，git仓库是https://github.com/timniederhausen/gn-build
 
@@ -868,7 +1074,7 @@ TODO: https://chromium.googlesource.com/chromium/src/build/+/refs/heads/main/doc
 
 
 
-## 5、Ninja
+## 6、Ninja
 
 Ninja是小型的编译系统，它有两个特点：
 
