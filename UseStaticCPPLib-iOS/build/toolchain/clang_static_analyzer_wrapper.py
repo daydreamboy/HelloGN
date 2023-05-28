@@ -8,12 +8,14 @@
 Usage: clang_static_analyzer_wrapper.py <compiler> [args...]
 """
 
-import argparse
 import fnmatch
 import itertools
 import os
 import sys
 import wrapper_utils
+
+sys.path.append(os.path.join(os.path.dirname(__file__), os.pardir))
+import gn_argparse as argparse
 
 # Flags used to enable analysis for Clang invocations.
 analyzer_enable_flags = [

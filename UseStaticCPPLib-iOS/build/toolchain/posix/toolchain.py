@@ -6,9 +6,24 @@ import subprocess
 import sys
 import os
 
+if "check_output" not in dir( subprocess ): # duck punch it in!
+  def f(*popenargs, **kwargs):
+    if 'stdout' in kwargs:
+      raise ValueError('stdout argument not allowed, it will be overridden.')
+    process = subprocess.Popen(stdout=subprocess.PIPE, *popenargs, **kwargs)
+    output, unused_err = process.communicate()
+    retcode = process.poll()
+    if retcode:
+      cmd = kwargs.get("args")
+      if cmd is None:
+        cmd = popenargs[0]
+      raise subprocess.CalledProcessError(retcode, cmd)
+    return output
+  subprocess.check_output = f
+
 def _get_compiler_version(path, major_define, minor_define, patchlevel_define):
   path = os.path.normpath(path)
-  defines = subprocess.check_output('echo "" | "{}" -dM -E -'.format(path), shell=True,
+  defines = subprocess.check_output('echo "" | "{0}" -dM -E -'.format(path), shell=True,
                                     universal_newlines=True).split('\n')
   version = 0
   for define in defines:

@@ -10,13 +10,14 @@ gcc_toolchain.gni's tool("link"), in case the host running the compiler
 does not have a POSIX-like shell (e.g. Windows).
 """
 
-import argparse
 import os
 import subprocess
 import sys
 
 import wrapper_utils
 
+sys.path.append(os.path.join(os.path.dirname(__file__), os.pardir))
+import gn_argparse as argparse
 
 # When running on a Windows host and using a toolchain whose tools are
 # actually wrapper scripts (i.e. .bat files on Windows) rather than binary

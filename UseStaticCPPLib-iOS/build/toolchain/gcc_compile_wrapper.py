@@ -10,11 +10,13 @@ gcc_toolchain.gni's tool("cxx") and tool("cc") in case the host running the
 compiler does not have a POSIX-like shell (e.g. Windows).
 """
 
-import argparse
 import sys
 
 import wrapper_utils
 
+import os
+sys.path.append(os.path.join(os.path.dirname(__file__), os.pardir))
+import gn_argparse as argparse
 
 def main():
   parser = argparse.ArgumentParser(description=__doc__)

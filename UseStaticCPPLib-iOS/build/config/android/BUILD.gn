@@ -24,6 +24,8 @@ config("compiler") {
 
     # Forces full rebuilds on NDK rolls.
     "ANDROID_NDK_VERSION=${android_ndk_version}",
+
+    "__ANDROID_API__=${android_api_level}",
   ]
 
   if (is_clang) {
@@ -48,9 +50,15 @@ config("compiler") {
 
     # Don't allow visible symbols from libgcc or libc++ to be
     # re-exported.
-    "-Wl,--exclude-libs=libgcc.a",
-    "-Wl,--exclude-libs=libc++_static.a",
+    "-Wl,--exclude-libs,libgcc.a",
+    "-Wl,--exclude-libs,libc++_static.a"
   ]
+
+  if (current_cpu == "arm") {
+    ldflags += [
+      "-Wl,--exclude-libs,libunwind.a"
+    ]
+  }
 
   if (is_clang) {
     _rebased_android_toolchain_root =
@@ -98,6 +106,9 @@ config("runtime_library") {
   # strange errors. The include ordering here is important; change with
   # caution.
   cflags_cc = []
+  cflags_c = []
+  libcxx_system_path = 
+      rebase_path("$android_ndk_root/sources/cxx-stl/system/include", root_build_dir)  
   if (android_ndk_major_version >= 13) {
     libcxx_include_path =
         rebase_path("$android_libcpp_root/include", root_build_dir)
@@ -120,10 +131,24 @@ config("runtime_library") {
   }
   cflags_cc += [
     "-isystem" + libcxx_include_path,
+    "-isystem" + libcxx_system_path,      
     "-isystem" + libcxxabi_include_path,
     "-isystem" +
-        rebase_path("$android_ndk_root/sources/android/support/include",
-                    root_build_dir),
+        rebase_path("$android_ndk_root/sources/android/support/include", root_build_dir),  
+    "-isystem" +
+        rebase_path(android_ndk_include_dir, root_build_dir),  
+    "-isystem" +
+        rebase_path(android_ndk_include_subdir, root_build_dir),
+  ]
+
+  cflags_c += [
+    "-isystem" + libcxx_system_path, 
+    "-isystem" +
+        rebase_path("$android_ndk_root/sources/android/support/include", root_build_dir), 
+    "-isystem" +
+        rebase_path(android_ndk_include_dir, root_build_dir),        
+     "-isystem" +
+        rebase_path(android_ndk_include_subdir, root_build_dir),
   ]
 
   defines = [ "__GNU_SOURCE=1" ]  # Necessary for clone().
@@ -135,17 +160,19 @@ config("runtime_library") {
   # that it can interpose operator new.
   if (is_asan) {
     libs = [ "c++_shared" ]
+    # libs = [ "gnustl_shared" ]
   } else {
     libs = [ "c++_static" ]
+    # libs = [ "gnustl_static" ]
   }
   libs += [
     "c++abi",
-    "android_support",
+    "log",
   ]
 
   # arm builds of libc++ starting in NDK r12 depend on unwind.
   if (current_cpu == "arm") {
-    libs += [ "unwind" ]
+    libs += [ "unwind", "android_support" ]
   }
 
   # Manually link the libgcc.a that the cross compiler uses. This is
@@ -156,9 +183,9 @@ config("runtime_library") {
   ]
 
   # Clang with libc++ does not require an explicit atomic library reference.
-  if (!is_clang) {
+  #if (!is_clang) {
     libs += [ "atomic" ]
-  }
+  #}
 
   if (is_clang) {
     # Work around incompatibilities between bionic and clang headers.

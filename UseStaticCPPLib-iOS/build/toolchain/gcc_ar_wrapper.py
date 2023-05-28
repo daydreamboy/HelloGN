@@ -11,7 +11,6 @@ to do the equivalent of:
   rm -f $OUT && $AR $OP $OUT $INPUTS
 """
 
-import argparse
 import os
 import subprocess
 import sys
@@ -19,6 +18,8 @@ import errno
 
 import wrapper_utils
 
+sys.path.append(os.path.join(os.path.dirname(__file__), os.pardir))
+import gn_argparse as argparse
 
 def main():
   parser = argparse.ArgumentParser(description=__doc__)

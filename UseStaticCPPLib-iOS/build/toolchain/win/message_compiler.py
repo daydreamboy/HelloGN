@@ -10,6 +10,21 @@
 import subprocess
 import sys
 
+if "check_output" not in dir( subprocess ): # duck punch it in!
+  def f(*popenargs, **kwargs):
+    if 'stdout' in kwargs:
+      raise ValueError('stdout argument not allowed, it will be overridden.')
+    process = subprocess.Popen(stdout=subprocess.PIPE, *popenargs, **kwargs)
+    output, unused_err = process.communicate()
+    retcode = process.poll()
+    if retcode:
+      cmd = kwargs.get("args")
+      if cmd is None:
+        cmd = popenargs[0]
+      raise subprocess.CalledProcessError(retcode, cmd)
+    return output
+  subprocess.check_output = f
+  
 # Read the environment block from the file. This is stored in the format used
 # by CreateProcess. Drop last 2 NULs, one for list terminator, one for trailing
 # vs. separator.

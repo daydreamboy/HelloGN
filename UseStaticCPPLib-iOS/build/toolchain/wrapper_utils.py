@@ -24,8 +24,9 @@ def _GzipThenDelete(src_path, dest_path):
   # gzip -1: 21.8MB, takes 2.0 seconds.
   # Piping directly from the linker via -print-map (or via -Map with a fifo)
   # adds a whopping 30-45 seconds!
-  with open(src_path, 'rb') as f_in, gzip.GzipFile(dest_path, 'wb', 1) as f_out:
-    shutil.copyfileobj(f_in, f_out)
+  with open(src_path, 'rb') as f_in:
+    with gzip.GzipFile(dest_path, 'wb', 1) as f_out:
+      shutil.copyfileobj(f_in, f_out)
   os.unlink(src_path)
 
 

@@ -46,7 +46,7 @@ declare_args() {
   # introduce extra locking to check the state of an iterator against the state
   # of the current object. For iterator- and thread-heavy code, this can
   # significantly slow execution.
-  enable_iterator_debugging = false
+  enable_iterator_debugging = true
 
   # When we are going to use gold we need to find it.
   gold_path = ""
@@ -69,40 +69,40 @@ declare_args() {
   auto_profile_path = ""
 
   # Optimize for coverage guided fuzzing (balance between speed and number of
-  # branches). Can be also used to remove non-determinism and other issues.
+  # branches)
   optimize_for_fuzzing = false
 
   # Control stack protection guards. There should be no need to disable this.
   # Note: Only honored on POSIX systems.
   enable_stack_protection = true
 
-  # Optional list containing extra assembler arguments.
+  # Optional string containing extra assembler arguments.
   # Like 'asmflags' this value is passed to all tools that take
   # an .asm or .S input.
   extra_asmflags = ""
 
-  # Optional list containing extra compiler arguments.
+  # Optional string containing extra compiler arguments.
   # Like 'cflags' this value is passed to the C, C++, Objective C, and
   # Objective C++ compilers.
   extra_cflags = ""
 
-  # Optional list containing extra compiler arguments.
+  # Optional string containing extra compiler arguments.
   # Like 'cflags_c' this value is only passed to the C compiler.
   extra_cflags_c = ""
 
-  # Optional list containing extra compiler arguments.
+  # Optional string containing extra compiler arguments.
   # Like 'cflags_cc' this value is only passed to the C++ compiler.
   extra_cflags_cc = ""
 
-  # Optional list containing extra compiler arguments.
+  # Optional string containing extra compiler arguments.
   # Like 'cflags_objc' this value is only passed to the Objective C compiler.
   extra_cflags_objc = ""
 
-  # Optional list containing extra compiler arguments.
+  # Optional string containing extra compiler arguments.
   # Like 'cflags_objcc' this value is only passed to the Objective C++ compiler.
   extra_cflags_objcc = ""
 
-  # Optional list containing extra linker arguments.
+  # Optional string containing extra linker arguments.
   extra_ldflags = ""
 }
 
@@ -214,28 +214,27 @@ config("compiler") {
 
   # Linux/Android common flags setup.
   # ---------------------------------
-  if (is_linux || is_android || is_freebsd) {
-    asmflags += [ "-fPIC" ]
-    cflags += [ "-fPIC" ]
-    ldflags += [ "-fPIC" ]
-
-    if (!is_clang) {
-      # Use pipes for communicating between sub-processes. Faster.
-      # (This flag doesn't do anything with Clang.)
-      cflags += [ "-pipe" ]
-    }
+  if (is_linux || is_android) {
+    cflags += [
+      "-fPIC",
+      "-pipe",  # Use pipes for communicating between sub-processes. Faster.
+    ]
 
     ldflags += [
+      "-fPIC",
       "-Wl,-z,noexecstack",
       "-Wl,-z,now",
       "-Wl,-z,relro",
     ]
-
     if (!using_sanitizer) {
+      if (!use_cfi_diag) {
+        ldflags += [ "-Wl,-z,defs" ]
+      }
+
       # Functions interposed by the sanitizers can make ld think
       # that some libraries aren't needed when they actually are,
       # http://crbug.com/234010. As workaround, disable --as-needed.
-      if (is_clang && !is_android && clang_version < 70000) {
+      if (!is_android) {
         # TODO(pcc): Fix linker bug which requires us to link pthread
         # unconditionally here (crbug.com/623236).
         ldflags += [
@@ -259,12 +258,6 @@ config("compiler") {
 
   if (is_posix && use_lld) {
     ldflags += [ "-fuse-ld=lld" ]
-    if (current_cpu == "arm64") {
-      # Reduce the page size from 65536 in order to reduce binary size slightly
-      # by shrinking the alignment gap between segments. This also causes all
-      # segments to be mapped adjacently, which breakpad relies on.
-      ldflags += [ "-Wl,-z,max-page-size=4096" ]
-    }
   } else if (use_gold) {
     ldflags += [
       # Newer gccs and clangs support -fuse-ld, use the flag to force gold
@@ -273,15 +266,19 @@ config("compiler") {
       "-fuse-ld=gold",
     ]
 
-    if (!is_android) {
-      # On Android, this isn't needed.  gcc in the NDK knows to look next to
-      # it with -fuse-ld=gold, and clang gets a --gcc-toolchain flag passed
-      # above.
-      if (gold_path != "") {
-        ldflags += [ "-B$gold_path" ]
+    if (is_android) {
+      # Use -mstackrealign due to a bug on ia32 Jelly Bean.
+      # See crbug.com/521527
+      if (current_cpu == "x86") {
+        cflags += [ "-mstackrealign" ]
       }
-
+    } else {
       ldflags += [
+        # On Android, this isn't needed.  gcc in the NDK knows to look next to
+        # it with -fuse-ld=gold, and clang gets a --gcc-toolchain flag passed
+        # above.
+        "-B$gold_path",
+
         # Experimentation found that using four linking threads
         # saved ~20% of link time.
         # https://groups.google.com/a/chromium.org/group/chromium-dev/browse_thread/thread/281527606915bb36
@@ -324,24 +321,18 @@ config("compiler") {
     cflags += [ "-fdiagnostics-color" ]
   }
 
-  if (use_lld) {
-    # TODO(thakis): Make the driver pass --color-diagnostics to the linker
-    # if -fcolor-diagnostics is passed to it, and pass -fcolor-diagnostics
-    # in ldflags instead.
-    if (is_win) {
-      # On Windows, we call the linker directly, instead of calling it through
-      # the driver.
-      ldflags += [ "--color-diagnostics" ]
-    } else {
-      ldflags += [ "-Wl,--color-diagnostics" ]
-    }
-  }
-
   # Print absolute paths in diagnostics. There is no precedent for doing this
   # on Linux/Mac (GCC doesn't support it), but MSVC does this with /FC and
   # Windows developers rely on it (crbug.com/636109) so only do this on Windows.
   if (is_clang && is_win && clang_version >= 40000) {
     cflags += [ "-fdiagnostics-absolute-paths" ]
+  }
+
+  # Makes builds independent of absolute file path.
+  # clang-cl (used if is_win) doesn't expose this flag.
+  if (is_clang && !is_win && clang_version >= 30800) {
+    absolute_path = rebase_path("//.")
+    cflags += [ "-fdebug-prefix-map=$absolute_path=." ]
   }
 
   if (is_mac) {
@@ -373,30 +364,27 @@ config("compiler") {
   }
 }
 
-# This config allows the user to directly specify compiler flags.
-# Mostly intended for special environments that don't warrant their
-# own config in //build.
 config("extra_flags") {
   if (extra_asmflags != "") {
-    asmflags = extra_asmflags
+    asmflags = [ extra_asmflags ]
   }
   if (extra_cflags != "") {
-    cflags = extra_cflags
+    cflags = [ extra_cflags ]
   }
   if (extra_cflags_c != "") {
-    cflags_c = extra_cflags_c
+    cflags_c = [ extra_cflags_c ]
   }
   if (extra_cflags_cc != "") {
-    cflags_cc = extra_cflags_cc
+    cflags_cc = [ extra_cflags_cc ]
   }
   if (extra_cflags_objc != "") {
-    cflags_objc = extra_cflags_objc
+    cflags_objc = [ extra_cflags_objc ]
   }
   if (extra_cflags_objcc != "") {
-    cflags_objcc = extra_cflags_objcc
+    cflags_objcc = [ extra_cflags_objcc ]
   }
   if (extra_ldflags != "") {
-    ldflags = extra_ldflags
+    ldflags = [ extra_ldflags ]
   }
 }
 
@@ -436,10 +424,12 @@ config("compiler_cpu_abi") {
         cflags += [ "--target=arm-linux-gnueabihf" ]
         ldflags += [ "--target=arm-linux-gnueabihf" ]
       }
-      cflags += [
-        "-march=$arm_arch",
-        "-mfloat-abi=$arm_float_abi",
-      ]
+      if (!is_nacl) {
+        cflags += [
+          "-march=$arm_arch",
+          "-mfloat-abi=$arm_float_abi",
+        ]
+      }
       if (arm_tune != "") {
         cflags += [ "-mtune=$arm_tune" ]
       }
@@ -448,7 +438,7 @@ config("compiler_cpu_abi") {
         cflags += [ "--target=aarch64-linux-gnu" ]
         ldflags += [ "--target=aarch64-linux-gnu" ]
       }
-    } else if (current_cpu == "mipsel") {
+    } else if (current_cpu == "mipsel" && !is_nacl) {
       if (mips_arch_variant == "r6") {
         if (is_clang) {
           cflags += [
@@ -533,16 +523,34 @@ config("compiler_cpu_abi") {
 
       cflags += [ "-m${mips_float_abi}-float" ]
     } else if (current_cpu == "mips64el") {
+      cflags += [ "-D__SANE_USERSPACE_TYPES__" ]
+      ldflags += [ "-Wl,--hash-style=sysv" ]
+      if (is_clang) {
+          if (is_android) {
+            cflags += [ "--target=mips64el-linux-android" ]
+            ldflags += [ "--target=mips64el-linux-android" ]
+          } else {
+            cflags += [
+              "--target=mips64el-linux-gnuabi64",
+              "-mfloat-abi=hard"]
+            ldflags += [ "--target=mips64el-linux-gnuabi64" ]
+          }
+      } else {
+          cflags += [
+            "-EL",
+            "-mabi=64",
+          ]
+          ldflags += [
+            "-EL",
+            "-mabi=64",
+          ]
+      }
       if (mips_arch_variant == "r6") {
         if (is_clang) {
-          if (is_android) {
-            cflags += [
-              "--target=mips64el-linux-android",
-              "-march=mips64el",
-              "-mcpu=mips64r6",
-            ]
-            ldflags += [ "--target=mips64el-linux-android" ]
-          }
+          cflags += [
+            "-march=mips64el",
+            "-mcpu=mips64r6",
+          ]
         } else {
           cflags += [
             "-mips64r6",
@@ -704,58 +712,6 @@ config("symbol_visibility_hidden") {
   }
 }
 
-config("deterministic") {
-  cflags = []
-  ldflags = []
-
-  if (is_clang && clang_version >= 70000) {
-    cflags += [ "-no-canonical-prefixes" ]
-
-    # If debug option is given, clang includes $cwd in debug info by default.
-    # For such build, this flag generates reproducible obj files even we use
-    # different build directory like "out/feature_a" and "out/feature_b" if
-    # we build same files with same compile flag.
-    # Other paths are already given in relative, no need to normalize them.
-    cflags += [
-      "-Xclang",
-      "-fdebug-compilation-dir",
-      "-Xclang",
-      ".",
-    ]
-  }
-
-  if (is_win && is_clang && clang_version >= 70000) {
-    # Absolutize source file path for PDB.
-    ldflags += [ "/PDBSourcePath:" + rebase_path(root_build_dir) ]
-  }
-
-  if (is_win) {
-    # /DEBUG causes the linker to generate a pdb file, and to write the absolute
-    # path to it in the executable file it generates.  This flag turns that
-    # absolute path into just the basename of the pdb file, which helps with
-    # build reproducibility. Debuggers look for pdb files next to executables,
-    # so there's no downside to always using this.
-    ldflags += [ "/pdbaltpath:%_PDB%" ]
-  }
-
-  # Eliminate build metadata (__DATE__, __TIME__ and __TIMESTAMP__)
-  if (is_win && !is_clang) {
-    cflags += [
-      "/wd4117",  # Trying to define or undefine a predefined macro.
-      "/D__DATE__=",
-      "/D__TIME__=",
-      "/D__TIMESTAMP__=",
-    ]
-  } else {
-    cflags += [
-      "-Wno-builtin-macro-redefined",
-      "-D__DATE__=",
-      "-D__TIME__=",
-      "-D__TIMESTAMP__=",
-    ]
-  }
-}
-
 # runtime_library -------------------------------------------------------------
 #
 # Sets the runtime library and associated options.
@@ -794,6 +750,9 @@ config("c++11") {
   if (!is_win) {
     cflags_cc = [ "-std=c++11" ]
   }
+  if (is_mac || is_ios) {
+    cflags_objcc = cflags_cc
+  }
 }
 
 config("c++14") {
@@ -801,6 +760,9 @@ config("c++14") {
     cflags_cc = [ "-std=c++14" ]
   } else if (is_clang || msc_full_ver >= 190024210) {
     cflags_cc = [ "/std:c++14" ]
+  }
+  if (is_mac || is_ios) {
+    cflags_objcc = cflags_cc
   }
 }
 
@@ -813,24 +775,12 @@ config("c++17") {
     }
   } else if (is_clang || msc_full_ver >= 191125506) {
     cflags_cc = [ "/std:c++17" ]
-  } else if (!is_clang && msc_full_ver >= 190024210) {
+  } else if (is_clang || msc_full_ver >= 190024210) {
     # Fall back to c++latest if c++17 isn't available
     cflags_cc = [ "/std:c++latest" ]
   }
-}
-
-config("c++20") {
-  if (!is_win) {
-    if ((is_clang && clang_version >= 100000) || gcc_version >= 100000) {
-      cflags_cc = [ "-std=c++20" ]
-    } else {
-      cflags_cc = [ "-std=c++2a" ]
-    }
-  } else if (is_clang && clang_version >= 100000) {
-    cflags_cc = [ "/std:c++20" ]
-  } else if (!is_clang) {
-    # No /std:c++20 yet
-    cflags_cc = [ "/std:c++latest" ]
+  if (is_mac || is_ios) {
+    cflags_objcc = cflags_cc
   }
 }
 
@@ -839,6 +789,9 @@ config("c++latest") {
     cflags_cc = [ "-std=c++1z" ]
   } else if (is_clang || msc_full_ver >= 190024210) {
     cflags_cc = [ "/std:c++latest" ]
+  }
+  if (is_mac || is_ios) {
+    cflags_objcc = cflags_cc
   }
 }
 
@@ -861,7 +814,9 @@ config("no_rtti") {
       cflags_cc = [ "/GR-" ]
     } else {
       cflags_cc = [ "-fno-rtti" ]
-      cflags_objcc = cflags_cc
+      if (is_mac || is_ios) {
+        cflags_objcc = cflags_cc
+      }
     }
   }
 }
@@ -881,7 +836,9 @@ config("exceptions") {
 config("no_exceptions") {
   if (!is_win || is_clang) {
     cflags_cc = [ "-fno-exceptions" ]
-    cflags_objcc = cflags_cc
+    if (is_mac || is_ios) {
+      cflags_objcc = cflags_cc
+    }
   }
 }
 
@@ -966,16 +923,8 @@ if (is_win) {
       # Mac dead code stripping requires symbols.
       common_optimize_on_ldflags += [ "-Wl,-dead_strip" ]
     }
-
-    if (is_official_build) {
-      common_optimize_on_ldflags += [
-        "-Wl,-no_data_in_code_info",
-        "-Wl,-no_function_starts",
-      ]
-    }
-  } else if (current_os != "aix") {
+  } else {
     # Non-Mac Posix flags.
-    # Aix does not support these.
 
     common_optimize_on_cflags += [
       # Don't emit the GCC version ident directives, they just end up in the
@@ -991,8 +940,7 @@ if (is_win) {
     common_optimize_on_ldflags += [
       # Specifically tell the linker to perform optimizations.
       # See http://lwn.net/Articles/192624/ .
-      # -O2 enables string tail merge optimization in gold and lld.
-      "-Wl,-O2",
+      "-Wl,-O1",
       "-Wl,--gc-sections",
     ]
   }
@@ -1002,7 +950,6 @@ if (is_win) {
 config("optimize") {
   if (is_win) {
     # Favor size over speed, /O1 must be before the common flags.
-    # /O1 implies /Os and /GF.
     cflags = [ "/O1" ] + common_optimize_on_cflags + [ "/Oi" ]
   } else {
     cflags = [ "-O2" ] + common_optimize_on_cflags
@@ -1016,14 +963,7 @@ config("no_optimize") {
     cflags = [
       "/Od",  # Disable optimization.
       "/Ob0",  # Disable all inlining (on by default).
-      "/GF",  # Enable string pooling (off by default).
     ]
-
-    if (target_cpu == "arm64") {
-      # Disable omitting frame pointers for no_optimize build because stack
-      # traces on Windows ARM64 rely on it.
-      cflags += [ "/Oy-" ]
-    }
   } else {
     cflags = [ "-O0" ]
     ldflags = []
@@ -1070,7 +1010,7 @@ config("optimize_max") {
     # build also specifies /Ot, /Oi, and /GF, but these are implied by /O2.
     cflags = [ "/O2" ] + common_optimize_on_cflags
   } else {
-    cflags = [ "-O3" ] + common_optimize_on_cflags
+    cflags = [ "-Os" ] + common_optimize_on_cflags
   }
   ldflags = common_optimize_on_ldflags
 }
@@ -1310,7 +1250,7 @@ if (is_ios || is_mac) {
 # Debug/release ----------------------------------------------------------------
 
 config("debug") {
-  defines = [ "_DEBUG" ]
+  defines = [ "_DEBUG", "DEBUG" ]
 
   if (is_win) {
     if (!enable_iterator_debugging) {
@@ -1333,29 +1273,23 @@ config("release") {
 # This config defines the default libraries applied to all targets.
 config("default_libs") {
   if (is_win) {
-    libs = []
-    if (current_os == "winuwp") {
-      # These libraries are needed for Windows UWP (i.e. store apps).
-      libs += [
-        "dloadhelper.lib",
-        "WindowsApp.lib",
-      ]
-    } else {
-      # These libraries are not compatible with Windows UWP (i.e. store apps.)
-      libs += [
-        "delayimp.lib",
-        "kernel32.lib",
-      ]
-    }
+    libs = [ "kernel32.lib" ]
   } else if (is_android) {
     libs = [
       "dl",
       "m",
     ]
   } else if (is_mac) {
-    # Targets should choose to explicitly link frameworks they require. Since
-    # linking can have run-time side effects, nothing should be listed here.
-    libs = []
+    libs = [
+      "AppKit.framework",
+      "ApplicationServices.framework",
+      "Carbon.framework",
+      "CoreFoundation.framework",
+      "Foundation.framework",
+      "IOKit.framework",
+      "OpenGL.framework",
+      "Security.framework",
+    ]
   } else if (is_linux) {
     libs = [
       "dl",

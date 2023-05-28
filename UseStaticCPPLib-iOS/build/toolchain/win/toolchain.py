@@ -3,7 +3,6 @@
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
-import json
 import re
 import os
 import subprocess
@@ -13,6 +12,20 @@ import sys
 sys.path.append(os.path.join(os.path.dirname(__file__), os.pardir, os.pardir))
 import gn_helpers
 
+if "check_output" not in dir( subprocess ): # duck punch it in!
+  def f(*popenargs, **kwargs):
+    if 'stdout' in kwargs:
+      raise ValueError('stdout argument not allowed, it will be overridden.')
+    process = subprocess.Popen(stdout=subprocess.PIPE, *popenargs, **kwargs)
+    output, unused_err = process.communicate()
+    retcode = process.poll()
+    if retcode:
+      cmd = kwargs.get("args")
+      if cmd is None:
+        cmd = popenargs[0]
+      raise subprocess.CalledProcessError(retcode, cmd)
+    return output
+  subprocess.check_output = f
 
 def _RegistryGetValueUsingWinReg(key, value):
   """Use the _winreg module to obtain the value of a registry key.
@@ -142,29 +155,6 @@ def _FormatAsEnvironmentBlock(envvar_dict):
   return block
 
 
-def GetEnv(arch):
-  """Gets the saved environment from a file for a given architecture."""
-  # The environment is saved as an "environment block" (see CreateProcess
-  # and msvs_emulation for details). We convert to a dict here.
-  # Drop last 2 NULs, one for list terminator, one for trailing vs. separator.
-  pairs = open(arch).read()[:-2].split('\0')
-  kvs = [item.split('=', 1) for item in pairs]
-  return dict(kvs)
-
-
-def LoadEnvFromCache(name):
-  if os.path.exists(name):
-    return GetEnv(name)
-
-  return None
-
-
-def SaveEnv(name, env):
-  env_block = _FormatAsEnvironmentBlock(env)
-  with open(name, 'wb') as f:
-    f.write(env_block)
-
-
 def _ParseClVersion(out):
   for line in out.splitlines():
     m = re.search(r' ([0-9.]+)', line)
@@ -178,18 +168,15 @@ def _ParseClVersion(out):
 
     return int(''.join(version[:3]))
 
-  raise Exception("Failed to find MSVC version string in: " + out)
+  return 0
+  #raise Exception("Failed to find MSVC version string in: " + out)
 
 
 def _GetClangMscVersionFromYear(version_as_year):
-  # Corresponds to the _MSC_VER value listed here:
-  # https://docs.microsoft.com/en-us/cpp/preprocessor/predefined-macros
   year_to_version = {
     '2013': '1800',
     '2015': '1900',
     '2017': '1910',
-    '2019': '1920',
-    '2022': '1930',
   }
   if version_as_year not in year_to_version:
     raise Exception(('Visual Studio version %s (from version_as_year)'
@@ -203,7 +190,7 @@ def _GetClangVersion(clang_base_path, msc_ver):
   msc_full_ver = 0
 
   path = os.path.join(clang_base_path, 'bin', 'clang-cl')
-  cmd = 'echo "" | "{}" -fmsc-version={} -Xclang -dM -E -'.format(path, msc_ver)
+  cmd = 'echo "" | "{0}" -fmsc-version={} -Xclang -dM -E -'.format(path, msc_ver)
   output = subprocess.check_output(cmd, shell=True, universal_newlines=True)
 
   for define in output.splitlines():
@@ -224,10 +211,6 @@ def _GetClangVersion(clang_base_path, msc_ver):
   return clang_version, msc_full_ver
 
 
-# https://github.com/Microsoft/vswhere/blob/4b16c6302889506e2d49ff24cfa39234753412b2/README.md
-_VSWHERE_PATH = r'%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe'
-
-
 def DetectVisualStudioPath(version_as_year):
   """Return path to the version_as_year of Visual Studio.
   """
@@ -236,8 +219,6 @@ def DetectVisualStudioPath(version_as_year):
     '2013': '12.0',
     '2015': '14.0',
     '2017': '15.0',
-    '2019': '16.0',
-    '2022': '17.0',
   }
 
   if version_as_year not in year_to_version:
@@ -245,27 +226,14 @@ def DetectVisualStudioPath(version_as_year):
                      ' not supported. Supported versions are: %s') % (
                       version_as_year, ', '.join(year_to_version.keys())))
 
-  if version_as_year in ('2017', '2019', '2022'):
-    # The VC++ 2017+ install location needs to be located using COM instead of
+  if version_as_year == '2017':
+    # The VC++ 2017 install location needs to be located using COM instead of
     # the registry. For details see:
     # https://blogs.msdn.microsoft.com/heaths/2016/09/15/changes-to-visual-studio-15-setup/
-    vswhere_path = os.path.expandvars(_VSWHERE_PATH)
-    if os.path.exists(vswhere_path):
-      version = year_to_version[version_as_year]
-      try:
-        out = json.loads(subprocess.check_output([
-          vswhere_path, '-version',
-          '[{},{})'.format(float(version), float(version) + 1),
-          '-legacy', '-format', 'json', '-utf8',
-        ]))
-        if out:
-          return out[0]['installationPath']
-      except subprocess.CalledProcessError:
-        pass
-
-    root_path = r'C:\Program Files (x86)\Microsoft Visual Studio\\' + version_as_year
+    # For now we use a hardcoded default with an environment variable override.
+    root_path = r'C:\Program Files (x86)\Microsoft Visual Studio\2017'
     for edition in ['Professional', 'Community', 'Enterprise', 'BuildTools']:
-      path = os.environ.get('vs{}_install'.format(version_as_year), os.path.join(root_path, edition))
+      path = os.environ.get('vs2017_install', os.path.join(root_path, edition))
       if os.path.exists(path):
         return path
   else:
@@ -284,7 +252,7 @@ def DetectVisualStudioPath(version_as_year):
 
 
 def FindLatestVisualStudio():
-  for version_as_year in ['2022', '2019', '2017', '2015', '2013']:
+  for version_as_year in ['2013', '2015', '2017']:
     try:
       return version_as_year, DetectVisualStudioPath(version_as_year)
     except Exception:
@@ -297,26 +265,15 @@ def GetVsPath(version_as_year):
   print(DetectVisualStudioPath(version_as_year))
 
 
-def SetupToolchain(version_as_year, vs_path, sdk_version=None,
+def SetupToolchain(version_as_year, vs_path, include_prefix, sdk_version=None,
                    clang_base_path=None, clang_msc_ver=None):
   cpus = ('x86', 'x64', 'arm', 'arm64')
 
   # vcvarsall.bat for VS 2017 fails if run after running vcvarsall.bat from
   # VS 2013 or VS 2015. Fix this by clearing the vsinstalldir environment
   # variable.
-  # Since vcvarsall.bat appends to the INCLUDE, LIB, and LIBPATH
-  # environment variables we need to clear those to avoid getting double
-  # entries when vcvarsall.bat has been run before gn gen. vcvarsall.bat
-  # also adds to PATH, but there is no clean way of clearing that and it
-  # doesn't seem to cause problems.
   if 'VSINSTALLDIR' in os.environ:
     del os.environ['VSINSTALLDIR']
-    if 'INCLUDE' in os.environ:
-      del os.environ['INCLUDE']
-    if 'LIB' in os.environ:
-      del os.environ['LIB']
-    if 'LIBPATH' in os.environ:
-      del os.environ['LIBPATH']
 
   if version_as_year == 'latest':
     version_as_year, vs_path = FindLatestVisualStudio()
@@ -326,23 +283,16 @@ def SetupToolchain(version_as_year, vs_path, sdk_version=None,
   # TODO(tim): We now launch all processes at once, but this still takes too long
   processes = {}
   for (cpu, is_uwp) in itertools.product(cpus, (False, True)):
-    name = cpu + ('_uwp' if is_uwp else '')
-    env_filename = 'environment_{}'.format(name)
-    if not os.path.exists(env_filename):
-      processes[name] = _Spawn(_BuildToolchainSetupCommand(vs_path, cpu, sdk_version, is_uwp))
+    suffix = '_uwp' if is_uwp else ''
+    processes[cpu + suffix] = _Spawn(_BuildToolchainSetupCommand(vs_path, cpu, sdk_version, is_uwp))
 
   windows_sdk_paths = {}
   envs = {}
   for (cpu, is_uwp) in itertools.product(cpus, (False, True)):
-    name = cpu + ('_uwp' if is_uwp else '')
-    env_filename = 'environment_{}'.format(name)
-    # Load environment variables.
-    env = LoadEnvFromCache(env_filename)
-    if env is None:
-      # Extract environment variables for subprocesses.
-      env = _ExtractImportantEnvironment(_ProcessSpawnResult(processes[name]))
-      SaveEnv(env_filename, env)
-    envs[name] = env
+    suffix = '_uwp' if is_uwp else ''
+    # Extract environment variables for subprocesses.
+    env = _ExtractImportantEnvironment(_ProcessSpawnResult(processes[cpu + suffix]))
+    envs[cpu + suffix] = env
 
     vc_bin_dir = ''
     vc_lib_path = ''
@@ -371,64 +321,28 @@ def SetupToolchain(version_as_year, vs_path, sdk_version=None,
         vc_lib_um_path = os.path.realpath(path)
         break
 
-    # Ignore incomplete installations.
-    # e.g. VS supports ARM64, but the Windows SDK does not.
-    if not vc_lib_path or not vc_lib_um_path:
-      continue
-
-    windows_sdk_paths[name] = os.path.realpath(env['WINDOWSSDKDIR'])
+    windows_sdk_paths[cpu + suffix] = os.path.realpath(env['WINDOWSSDKDIR'])
 
     # The separator for INCLUDE here must match the one used in
     # _LoadToolchainEnv() above.
-    include = [p.replace('"', r'\"') for p in env['INCLUDE'].split(';') if p]
+    include = [include_prefix + p for p in env['INCLUDE'].split(';') if p]
+    include = ' '.join(['"' + i.replace('"', r'\"') + '"' for i in include])
+    include_flags = include
 
-    # Make include path relative to builddir when cwd and sdk in same drive.
-    try:
-      include = list(map(os.path.relpath, include))
-    except ValueError:
-      pass
-
-    lib = [p.replace('"', r'\"') for p in env['LIB'].split(';') if p]
-    # Make lib path relative to builddir when cwd and sdk in same drive.
-    try:
-      lib = list(map(os.path.relpath, lib))
-    except ValueError:
-      pass
-
-    def q(s):  # Quote s if it contains spaces or other weird characters.
-      return s if re.match(r'^[a-zA-Z0-9._/\\:-]*$', s) else '"' + s + '"'
-
-    include_I = ' '.join([q('/I' + i) for i in include])
-    include_imsvc = ' '.join([q('-imsvc' + i) for i in include])
-    libpath_flags = ' '.join([q('-libpath:' + i) for i in lib])
-
-    print(name + ' = {')
-
-    print('env_filename = ' + gn_helpers.ToGNString(env_filename))
-    assert vc_bin_dir
-    print('vc_bin_dir = ' + gn_helpers.ToGNString(vc_bin_dir))
-    assert include_I
-    print('include_flags_I = ' + gn_helpers.ToGNString(include_I))
-    assert include_imsvc
-    print('include_flags_imsvc = ' + gn_helpers.ToGNString(include_imsvc))
-    assert vc_lib_path
-    print('vc_lib_path = ' + gn_helpers.ToGNString(vc_lib_path))
-    # Possible atlmfc library path gets introduced in the future for store thus
-    # output result if a result exists.
-    if vc_lib_atlmfc_path != '':
-      print('vc_lib_atlmfc_path = ' + gn_helpers.ToGNString(vc_lib_atlmfc_path))
-    assert vc_lib_um_path
-    print('vc_lib_um_path = ' + gn_helpers.ToGNString(vc_lib_um_path))
-    print('paths = ' + gn_helpers.ToGNString(env['PATH']))
-    assert libpath_flags
-    print('libpath_flags = ' + gn_helpers.ToGNString(libpath_flags))
+    env_block = _FormatAsEnvironmentBlock(env)
+    env_filename = 'environment_{}{}'.format(cpu, suffix)
+    with open(env_filename, 'wb') as f:
+      f.write(env_block)
+    print(cpu + suffix + ' = {')
+    print(gn_helpers.ToGNString(dict(
+      vc_bin_dir=vc_bin_dir, vc_lib_path=vc_lib_path,
+      vc_lib_atlmfc_path=vc_lib_atlmfc_path,
+      vc_lib_um_path=vc_lib_um_path,
+      include_flags=include_flags, env_filename=env_filename)))
     print('}')
 
-  if not windows_sdk_paths:
-    raise Exception("No usable Windows SDK found")
-
   if len(set(windows_sdk_paths.values())) != 1:
-    raise Exception("Different WINDOWSSDKDIR values for different CPUs are unsupported")
+    raise Exception("WINDOWSSDKDIR is different for x86/x64")
 
   print('visual_studio_version = ' + gn_helpers.ToGNString(version_as_year))
   print('visual_studio_path = ' + gn_helpers.ToGNString(vs_path))

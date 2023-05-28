@@ -8,7 +8,8 @@ import("//build/toolchain/clang_static_analyzer.gni")
 import("//build/toolchain/toolchain.gni")
 import("//build/toolchain/clang.gni")
 
-assert(is_win, "Should only be running on Windows")
+# Should only be running on Windows.
+assert(is_win)
 
 declare_args() {
   # Root directory that will store the MSVC link repro. This should only be
@@ -24,12 +25,6 @@ declare_args() {
   #
   # See crbug.com/669854.
   linkrepro_root_dir = ""
-}
-
-if (host_os == "win") {
-  _exe = ".exe"
-} else {
-  _exe = ""
 }
 
 # Parameters:
@@ -48,24 +43,30 @@ template("msvc_toolchain") {
         forward_variables_from(invoker.toolchain_args, "*")
       }
 
-      cached_toolchain_data = toolchain_data
-
       # This value needs to be passed through unchanged.
       host_toolchain = host_toolchain
     }
 
-    if (defined(toolchain_args.is_clang)) {
-      toolchain_is_clang = toolchain_args.is_clang
-    } else {
-      toolchain_is_clang = is_clang
-    }
+    # Make these apply to all tools below.
+    lib_switch = ""
+    lib_dir_switch = "/LIBPATH:"
+
+    # Object files go in this directory.
+    object_subdir = "{{target_out_dir}}/{{label_name}}"
+
+    env = invoker.environment
 
     # When the invoker has explicitly overridden use_goma or cc_wrapper in the
     # toolchain args, use those values, otherwise default to the global one.
     # This works because the only reasonable override that toolchains might
     # supply for these values are to force-disable them.
+    if (defined(toolchain_args.is_clang)) {
+      toolchain_uses_clang = toolchain_args.is_clang
+    } else {
+      toolchain_uses_clang = is_clang
+    }
 
-    if (toolchain_is_clang && host_os != "win") {
+    if (toolchain_uses_clang && host_os != "win") {
       # This toolchain definition uses response files for compilations.  GN uses
       # the quoting rules of the host OS, while clang-cl always defaults to
       # cmd.exe quoting rules for parsing response files.  Tell clang-cl to use
@@ -75,29 +76,13 @@ template("msvc_toolchain") {
       cl = invoker.cl
     }
 
-    if (toolchain_is_clang && use_clang_static_analyzer) {
+    if (toolchain_uses_clang && use_clang_static_analyzer) {
       analyzer_prefix =
           "$python_path " +
           rebase_path("//build/toolchain/clang_static_analyzer_wrapper.py",
                       root_build_dir) + " --mode=cl"
       cl = "${analyzer_prefix} ${cl}"
     }
-
-    if (host_os == "win") {
-      # Flip the slashes so that copy/paste of the command works.
-      cl = string_replace(cl, "/", "\\")
-    }
-
-    # Make these apply to all tools below.
-    lib_switch = ""
-    lib_dir_switch = "/LIBPATH:"
-
-    # Generic compiler output path
-    # Use label_name instead of target_output_name since labels will generally
-    # have no spaces and will be unique in the directory.
-    object_path = "{{target_out_dir}}/{{label_name}}/{{source_name_part}}"
-
-    env = invoker.environment
 
     if (use_lld) {
       if (host_os == "win") {
@@ -108,16 +93,10 @@ template("msvc_toolchain") {
 
       # lld-link includes a replacement for lib.exe that can produce thin
       # archives and understands bitcode (for lto builds).
+      # NOTE: We need to escape the executable path, since $clang_base_path
+      # can contain spaces (e.g. C:\Program Files\LLVM)
+      lib = "\"$clang_base_path/bin/$lld_link\" /lib /llvmlibthin"
       link = "\"$clang_base_path/bin/$lld_link\""
-      if (host_os == "win") {
-        # Flip the slashes so that copy/paste of the commands works.
-        link = string_replace(link, "/", "\\")
-      }
-      lib = "$link /lib"
-      if (host_os != "win") {
-        # See comment adding --rsp-quoting to $cl above for more information.
-        link = "$link --rsp-quoting=posix"
-      }
     } else {
       lib = "lib.exe"
       link = "link.exe"
@@ -132,71 +111,25 @@ template("msvc_toolchain") {
       sys_include_flags = "${invoker.sys_include_flags} "  # Note trailing space.
     } else {
       # clang-cl doesn't need this env hoop, so omit it there.
-      assert(!toolchain_is_clang)
+      assert(!toolchain_uses_clang)
       env_wrapper = "ninja -t msvc -e $env -- "  # Note trailing space.
       sys_include_flags = ""
-    }
-
-    # ninja does not have -t msvc other than windows, and lld doesn't depend on
-    # mt.exe in PATH on non-Windows, so it's not needed there anyways.
-    if (host_os != "win") {
-      linker_wrapper = ""
-      sys_lib_flags = "${invoker.sys_lib_flags} "  # Note trailing space
-    } else if (defined(invoker.sys_lib_flags)) {
-      # Invoke ninja as wrapper instead of tool wrapper, because python
-      # invocation requires higher cpu usage compared to ninja invocation, and
-      # the python wrapper is only needed to work around link.exe problems.
-      # TODO(thakis): Remove wrapper once lld-link can merge manifests without
-      # relying on mt.exe being in %PATH% on Windows, https://crbug.com/872740
-      linker_wrapper = "ninja -t msvc -e $env -- "  # Note trailing space.
-      sys_lib_flags = "${invoker.sys_lib_flags} "  # Note trailing space
-    } else {
-      link_wrapper_path =
-          rebase_path("//build/toolchain/win/link_wrapper.py", root_build_dir)
-      linker_wrapper =
-          "$python_path $link_wrapper_path $env False "  # Note trailing space.
-      sys_lib_flags = ""
-    }
-
-    if (toolchain_is_clang) {
-      # Write header deps to a file instead of writing to stdout. This ensures
-      # compatibility with sccache and potentially other tools that add the
-      # `/E` (preprocess to stdout) flag, which our version of clang-cl
-      # doesn't properly support in conjunction with `/showIncludes`.
-      # See https://reviews.llvm.org/D46394
-      # and https://github.com/mozilla/sccache/issues/246
-
-      # We can't pass `-MMD -MF` (as it's done in gcc_toolchain.gni) to
-      # clang-cl, not even when prefixed with `-Xclang`. The underlying cc1
-      # binary does know how to generate depfiles but it requires somewhat
-      # different flags.
-      # See https://bugzilla.mozilla.org/show_bug.cgi?id=1340588
-      # and https://hg.mozilla.org/mozilla-central/rev/30dc6c484d42
-      show_includes = "-Xclang -dependency-file -Xclang {{output}}.d -Xclang -MT -Xclang {{source}} -Xclang -MP -Xclang -MG"
-    } else {
-      show_includes = "/showIncludes"
     }
 
     tool("cc") {
       precompiled_header_type = "msvc"
       pdbname = "{{target_out_dir}}/{{label_name}}_c.pdb"
 
+      depsformat = "msvc"
       description = "CC {{output}}"
       outputs = [
-        "$object_path.obj",
+        "$object_subdir/{{source_name_part}}.obj",
       ]
-
-      if (toolchain_is_clang) {
-        depsformat = "gcc"
-        depfile = "{{output}}.d"
-      } else {
-        depsformat = "msvc"
-      }
 
       # Label names may have spaces in them so the pdbname must be quoted. The
       # source and output don't need to be quoted because GN knows they're a
       # full file name and will quote automatically when necessary.
-      command = "$env_wrapper$cl /nologo $show_includes /FC $sys_include_flags{{defines}} {{include_dirs}} {{cflags}} {{cflags_c}} /c {{source}} /Fo{{output}} /Fd\"$pdbname\""
+      command = "$env_wrapper$cl /nologo /showIncludes /FC $sys_include_flags{{defines}} {{include_dirs}} {{cflags}} {{cflags_c}} /c {{source}} /Fo{{output}} /Fd\"$pdbname\""
     }
 
     tool("cxx") {
@@ -205,20 +138,14 @@ template("msvc_toolchain") {
       # The PDB name needs to be different between C and C++ compiled files.
       pdbname = "{{target_out_dir}}/{{label_name}}_cc.pdb"
 
+      depsformat = "msvc"
       description = "CXX {{output}}"
       outputs = [
-        "$object_path.obj",
+        "$object_subdir/{{source_name_part}}.obj",
       ]
 
-      if (toolchain_is_clang) {
-        depsformat = "gcc"
-        depfile = "{{output}}.d"
-      } else {
-        depsformat = "msvc"
-      }
-
       # See comment in CC tool about quoting.
-      command = "$env_wrapper$cl /nologo $show_includes /FC $sys_include_flags{{defines}} {{include_dirs}} {{cflags}} {{cflags_cc}} /c {{source}} /Fo{{output}} /Fd\"$pdbname\""
+      command = "$env_wrapper$cl /nologo /showIncludes /FC $sys_include_flags{{defines}} {{include_dirs}} {{cflags}} {{cflags_cc}} /c {{source}} /Fo{{output}} /Fd\"$pdbname\""
     }
 
     tool("rc") {
@@ -227,7 +154,7 @@ template("msvc_toolchain") {
       command = "$python_path $rc_wrapper $env {{source}} {{output}} rc.exe {{defines}} {{include_dirs}}"
       depsformat = "msvc"
       outputs = [
-        "$object_path.res",
+        "$object_subdir/{{source_name_part}}.res",
       ]
       description = "RC {{output}}"
     }
@@ -243,13 +170,16 @@ template("msvc_toolchain") {
       command = "$python_path $asm_wrapper $env $ml {{defines}} {{include_dirs}} {{asmflags}} /c /Fo{{output}} {{source}}"
       description = "ASM {{output}}"
       outputs = [
-        "$object_path.obj",
+        "$object_subdir/{{source_name_part}}.obj",
       ]
     }
 
     tool("alink") {
       rspfile = "{{output}}.rsp"
-      command = "$linker_wrapper$lib /nologo ${sys_lib_flags}{{arflags}} /OUT:{{output}} @$rspfile"
+
+      link_wrapper =
+          rebase_path("//build/toolchain/win/link_wrapper.py", root_build_dir)
+      command = "$python_path $link_wrapper $env False $lib /nologo {{arflags}} /OUT:{{output}} @$rspfile"
       description = "LIB {{output}}"
       outputs = [
         # Ignore {{output_extension}} and always use .lib, there's no reason to
@@ -265,14 +195,15 @@ template("msvc_toolchain") {
     }
 
     tool("solink") {
-      # E.g. "foo.dll":
-      dllname = "{{output_dir}}/{{target_output_name}}{{output_extension}}"
+      dllname = "{{output_dir}}/{{target_output_name}}{{output_extension}}"  # e.g. foo.dll
       libname = "${dllname}.lib"  # e.g. foo.dll.lib
       pdbname = "${dllname}.pdb"
       rspfile = "${dllname}.rsp"
       pool = "//build/toolchain:link_pool($default_toolchain)"
 
-      command = "$linker_wrapper$link /OUT:$dllname /nologo ${sys_lib_flags}/IMPLIB:$libname /DLL /PDB:$pdbname @$rspfile"
+      link_wrapper =
+          rebase_path("//build/toolchain/win/link_wrapper.py", root_build_dir)
+      command = "$python_path $link_wrapper $env False $link /nologo /IMPLIB:$libname /DLL /OUT:$dllname /PDB:$pdbname @$rspfile"
 
       default_output_extension = ".dll"
       default_output_dir = "{{root_out_dir}}"
@@ -289,25 +220,25 @@ template("msvc_toolchain") {
         runtime_outputs += [ pdbname ]
       }
 
-      # Since the above commands only updates the .lib file when it changes,
-      # ask Ninja to check if the timestamp actually changed to know if
-      # downstream dependencies should be recompiled.
+      # Since the above commands only updates the .lib file when it changes, ask
+      # Ninja to check if the timestamp actually changed to know if downstream
+      # dependencies should be recompiled.
       restat = true
 
       # The use of inputs_newline is to work around a fixed per-line buffer
       # size in the linker.
-      rspfile_content =
-          "{{libs}} {{solibs}} {{inputs_newline}} {{ldflags}} {{rlibs}}"
+      rspfile_content = "{{libs}} {{solibs}} {{inputs_newline}} {{ldflags}}"
     }
 
     tool("solink_module") {
-      # E.g. "foo.dll":
-      dllname = "{{output_dir}}/{{target_output_name}}{{output_extension}}"
+      dllname = "{{output_dir}}/{{target_output_name}}{{output_extension}}"  # e.g. foo.dll
       pdbname = "${dllname}.pdb"
       rspfile = "${dllname}.rsp"
       pool = "//build/toolchain:link_pool($default_toolchain)"
 
-      command = "$linker_wrapper$link /OUT:$dllname /nologo ${sys_lib_flags}/DLL /PDB:$pdbname @$rspfile"
+      link_wrapper =
+          rebase_path("//build/toolchain/win/link_wrapper.py", root_build_dir)
+      command = "$python_path $link_wrapper $env False $link /nologo /DLL /OUT:$dllname /PDB:$pdbname @$rspfile"
 
       default_output_extension = ".dll"
       default_output_dir = "{{root_out_dir}}"
@@ -322,8 +253,7 @@ template("msvc_toolchain") {
 
       # The use of inputs_newline is to work around a fixed per-line buffer
       # size in the linker.
-      rspfile_content =
-          "{{libs}} {{solibs}} {{inputs_newline}} {{ldflags}} {{rlibs}}"
+      rspfile_content = "{{libs}} {{solibs}} {{inputs_newline}} {{ldflags}}"
     }
 
     tool("link") {
@@ -332,7 +262,9 @@ template("msvc_toolchain") {
       rspfile = "$exename.rsp"
       pool = "//build/toolchain:link_pool($default_toolchain)"
 
-      command = "$linker_wrapper$link /OUT:$exename /nologo ${sys_lib_flags} /PDB:$pdbname @$rspfile"
+      link_wrapper =
+          rebase_path("//build/toolchain/win/link_wrapper.py", root_build_dir)
+      command = "$python_path $link_wrapper $env False $link /nologo /OUT:$exename /PDB:$pdbname @$rspfile"
 
       if (linkrepro_root_dir != "") {
         # Create the directory that will receive the link repro for this target
@@ -357,8 +289,7 @@ template("msvc_toolchain") {
 
       # The use of inputs_newline is to work around a fixed per-line buffer
       # size in the linker.
-      rspfile_content =
-          "{{inputs_newline}} {{libs}} {{solibs}} {{ldflags}} {{rlibs}}"
+      rspfile_content = "{{inputs_newline}} {{libs}} {{solibs}} {{ldflags}}"
     }
 
     # These two are really entirely generic, but have to be repeated in
@@ -400,13 +331,8 @@ template("target_combo_toolchains") {
 
   msvc_toolchain("clang_" + cpu) {
     environment = tgt_toolchain_data.env_filename
-    cl = "$clang_base_path/bin/clang-cl${_exe}"
-    if (host_os == "win") {
-      # Flip the slashes so that copy/paste of the command works.
-      cl = string_replace(cl, "/", "\\")
-    }
-    sys_include_flags = "${tgt_toolchain_data.include_flags_imsvc}"
-    sys_lib_flags = "${tgt_toolchain_data.libpath_flags}"
+    cl = "$clang_base_path/bin/${clang_cl}"
+    sys_include_flags = "${tgt_toolchain_data.include_flags}"
 
     toolchain_args = {
       current_os = "win"

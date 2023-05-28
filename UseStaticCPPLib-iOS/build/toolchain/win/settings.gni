@@ -27,8 +27,8 @@ declare_args() {
   # (Defaults to the default version associated with the chosen VS version.)
   clang_msc_ver = 0
 
-  # Allows us to avoid multiple toolchain.py invocations for multi-toolchain builds.
-  cached_toolchain_data = ""
+  # Set MD/MT/default to switch runtime library.
+  win_runtime_library = "default"
 }
 
 assert(visual_studio_version != "", "visual_studio_version must be non-empty")
@@ -36,9 +36,12 @@ assert(visual_studio_path == "" || visual_studio_version != "latest",
        "You must set visual_studio_version if you set visual_studio_path")
 
 if (is_clang) {
+  sys_include_prefix = "-imsvc"
   _clang_base_path_arg = clang_base_path
   _clang_msc_ver = "" + clang_msc_ver
 } else {
+  # MSVC doesn't have the concept of system headers.
+  sys_include_prefix = "/I"
   _clang_base_path_arg = ""
   _clang_msc_ver = ""
 }
@@ -54,24 +57,21 @@ if (visual_studio_path == "") {
   visual_studio_path = "default"
 }
 
-if (cached_toolchain_data != "") {
-  toolchain_data = cached_toolchain_data
-} else {
-  toolchain_data = exec_script("toolchain.py",
-                               [
-                                 "setup_toolchain",
-                                 visual_studio_version,
-                                 visual_studio_path,
-                                 windows_sdk_version,
+toolchain_data = exec_script("toolchain.py",
+                             [
+                               "setup_toolchain",
+                               visual_studio_version,
+                               visual_studio_path,
+                               sys_include_prefix,
+                               windows_sdk_version,
 
-                                 # Don't use clang_base_path directly, so we can
-                                 # skip clang detection if not needed
-                                 # (i.e. !is_clang).
-                                 _clang_base_path_arg,
-                                 _clang_msc_ver,
-                               ],
-                               "scope")
-}
+                               # Don't use clang_base_path directly, so we can
+                               # skip clang detection if not needed
+                               # (i.e. !is_clang).
+                               _clang_base_path_arg,
+                               _clang_msc_ver,
+                             ],
+                             "scope")
 
 visual_studio_version = toolchain_data.visual_studio_version
 visual_studio_path = toolchain_data.visual_studio_path
@@ -87,10 +87,8 @@ msc_ver = toolchain_data.msc_ver
 # see: https://msdn.microsoft.com/en-us/library/b0084kay.aspx
 msc_full_ver = toolchain_data.msc_full_ver
 
-if (defined(toolchain_data.clang_version)) {
+if (is_clang) {
   win_clang_version = toolchain_data.clang_version
-} else {
-  win_clang_version = 0
 }
 
 # current_toolchain_data: Settings specific to current_os/current_cpu

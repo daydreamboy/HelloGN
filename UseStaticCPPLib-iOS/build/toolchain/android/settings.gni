@@ -6,15 +6,15 @@
 
 declare_args() {
   android_ndk_root = "$external/android_tools/ndk"
-  android_ndk_version = "r12b"
-  android_ndk_major_version = 12
+  android_ndk_version = "r18b"
+  android_ndk_major_version = 18
 
   android_sdk_root = "$external/android_tools/sdk"
-  android_sdk_version = "24"
-  android_sdk_build_tools_version = "24.0.2"
+  android_sdk_version = "26"
+  android_sdk_build_tools_version = "26.0.0"
 
   lint_android_sdk_root = "$external/android_tools/sdk"
-  lint_android_sdk_version = "24"
+  lint_android_sdk_version = "26"
 
   # Libc++ library directory. Override to use a custom libc++ binary.
   android_libcpp_lib_dir = ""
@@ -57,7 +57,7 @@ if (host_os == "linux") {
 android_sdk = "${android_sdk_root}/platforms/android-${android_sdk_version}"
 
 # Path to the Android NDK and SDK.
-android_ndk_include_dir = "$android_ndk_root/usr/include"
+android_ndk_include_dir = "$android_ndk_root/sysroot/usr/include"
 
 android_sdk_tools = "${android_sdk_root}/tools"
 android_sdk_build_tools =
@@ -71,11 +71,11 @@ zipalign_path = "$android_sdk_build_tools/zipalign"
 # Subdirectories inside android_ndk_root that contain the sysroot for the
 # associated platform.
 # If you raise this, reevaluate the snprintf=snprintf in ./BUILD.gn.
-_android_api_level = 16
-x86_android_sysroot_subdir = "platforms/android-${_android_api_level}/arch-x86"
-arm_android_sysroot_subdir = "platforms/android-${_android_api_level}/arch-arm"
+android_api_level = 16
+x86_android_sysroot_subdir = "platforms/android-${android_api_level}/arch-x86"
+arm_android_sysroot_subdir = "platforms/android-${android_api_level}/arch-arm"
 mips_android_sysroot_subdir =
-    "platforms/android-${_android_api_level}/arch-mips"
+    "platforms/android-${android_api_level}/arch-mips"
 
 # If you raise this, reevaluate the snprintf=snprintf in ./BUILD.gn.
 _android64_api_level = 21
@@ -134,6 +134,7 @@ if (current_cpu == "x86") {
   assert(false, "Need android libgcc support for your target arch.")
 }
 
+android_ndk_include_subdir = "$android_ndk_include_dir/$_binary_prefix"
 android_tool_prefix = "$android_toolchain_root/bin/$_binary_prefix-"
 android_readelf = "${android_tool_prefix}readelf"
 android_objcopy = "${android_tool_prefix}objcopy"
