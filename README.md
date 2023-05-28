@@ -1032,6 +1032,77 @@ $ gn clean_stale [--ninja-executable=...] <out_dir>...
 
 
 
+### (2) Target声明(Target declarations)
+
+TODO
+
+
+
+### (3) 内置函数(Buildfile functions)
+
+TODO
+
+
+
+### (4) 内置预定义变量
+
+TODO
+
+
+
+### (5) 需用户设置的变量
+
+TODO
+
+
+
+### (6) 其他话题
+
+#### a. buildargs（编译参数）
+
+buildargs的定义，如下
+
+> Build arguments are variables passed in from outside of the build that build
+> files can query to determine how the build works.
+
+这里的Build arguments，是指从外部传给build file的参数。有两种方式，如下
+
+* 编辑`args.gn`文件。在out文件下直接编辑该文件，或者使用`gn args out`唤起编辑器来编辑
+
+* `gn gen out`命令行传`--args`参数。例如
+
+  ```shell
+  $ gn gen out/FooBar --args="enable_doom_melon=true os=\"android\""
+  ```
+
+  该命令也会将参数写入到`args.gn`文件中
+
+
+
+#### b. Build graph and execution overview
+
+GN的完整编译流，分为六个步骤，如下
+
+1）寻找`.gn`文件，它所在的文件夹设置为source root，并解析这个文件，确定build config文件的位置
+
+2）执行build config文件，设置全局变量和默认toolchain名字。在这个build config文件中的任意argument、variable和default，都是对所有文件可见的
+
+3）加载//BUILD.gn文件，它位于source root下面
+
+4）递归地执行//BUILD.gn中的rule，如果有依赖关系，则加载其他文件夹的BUILD.gn文件。如果没有其他BUILD.gn文件，则根据`.gn`文件中secondary_source字段再搜索
+
+5）每当一个target的依赖全部处理完，则写入`.ninja`文件到out文件夹
+
+6）当所有target处理完，则写入`build.ninja`文件到out文件夹
+
+根据上面的描述，GN的编译流实际是根据//BUILD.gn中设置的target及其依赖，形成一个有向无循环图。
+
+
+
+#### c. GN语言
+
+
+
 
 
 

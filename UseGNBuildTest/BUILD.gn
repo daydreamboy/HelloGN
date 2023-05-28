@@ -39,6 +39,14 @@ static_library("hello_static") {
 }
 
 group("hello_all") {
+  # print("1. hello_all")
+
+  # print("is_win: ", is_win)
+  # print("is_clang: ", is_clang)
+  # print("is_posix: ", is_posix)
+  # print("is_android: ", is_android)
+  # print("is_mac: ", is_mac)
+
   if (is_win) {
     if (is_clang) {
       deps = [
@@ -53,11 +61,15 @@ group("hello_all") {
     }
   } else if (is_posix && !is_android && !is_linux && !is_mac) {
     if (is_clang) {
+      print("2. is_clang")
+
       deps = [
         ":hello(//build/toolchain/posix:clang_x64)",
         ":hello(//build/toolchain/posix:clang_x86)",
       ]
     } else {
+      print("3. is_clang")
+
       deps = [
         ":hello(//build/toolchain/posix:x64)",
         ":hello(//build/toolchain/posix:x86)",

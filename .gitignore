@@ -67,3 +67,5 @@ vs-chromium-project.txt
 
 # Customized
 *.o
+.idea/
+ios_out/
