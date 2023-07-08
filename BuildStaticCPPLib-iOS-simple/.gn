@@ -1,0 +1,13 @@
+# The location of the build configuration file.
+buildconfig = "//build/BUILDCONFIG.gn"
+
+# The build script are using `python3` which is the only version of
+# python installed by default on macOS Monterey and above.
+script_executable = "python3"
+
+# default_args = {
+#     # Default to release builds for this project.
+#     is_debug = false
+#     target_cpu = "x64"
+#     target_os = "ios"
+# }

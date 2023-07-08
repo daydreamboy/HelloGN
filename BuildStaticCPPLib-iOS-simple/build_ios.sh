@@ -1,4 +1,5 @@
 set -x
+set -e
 
 libName="libhello_ios_static_cpp.a"
 

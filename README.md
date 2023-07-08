@@ -1120,7 +1120,7 @@ TODO
 
 ### (3) 内置函数(Buildfile functions)
 
-buildfile文件(BUILD.gn、BUILDCONFIG.gn)存在一些内置函数，可以直接使用。
+buildfile文件(`BUILD.gn`、`BUILDCONFIG.gn`)存在一些内置函数，可以直接使用。
 
 | 内置函数               | 作用                                              |
 | ---------------------- | ------------------------------------------------- |
@@ -1288,6 +1288,12 @@ _sdk_info = exec_script("//build/config/ios/scripts/sdk_info.py",
 
 
 
+#### forward_variables_from
+
+TODO
+
+
+
 #### import
 
 import函数，用于导入一个文件到当前作用域中
@@ -1396,6 +1402,153 @@ static_library("mylib") {
 这里定义名为mylib的静态库target，它具备默认参数，还移除一些特定参数。
 
 
+
+#### template
+
+template函数，用于定义一个模板，然后可以多次调用这个模板，传入不同的参数。
+
+语法格式：template(name) { ... }
+
+当定义好模板名称，可以像函数调用那样使用这个模板。举个例子，如下
+
+```properties
+template("ios_toolchain") {
+  toolchain(target_name) {
+  ...
+  }
+}
+
+ios_toolchain("clang_x86") {
+  toolchain_args = {
+    current_cpu = "x86"
+    current_os = "ios"
+  }
+}
+
+ios_toolchain("clang_x64") {
+  toolchain_args = {
+    current_cpu = "x64"
+    current_os = "ios"
+  }
+}
+
+ios_toolchain("clang_arm") {
+  toolchain_args = {
+    current_cpu = "arm"
+    current_os = "ios"
+  }
+}
+
+ios_toolchain("clang_arm64") {
+  toolchain_args = {
+    current_cpu = "arm64"
+    current_os = "ios"
+  }
+}
+```
+
+这里的模板名字是ios_toolchain，并调用4次，通过toolchain_args传递不同的参数。
+
+
+
+#### tool
+
+tool函数。TODO
+
+
+
+#### toolchain
+
+toolchain函数，用于定义一个工具链(toolchain)
+
+工具链(toolchain)是指一组命令行，以及编译参数(build flag)，用于编译源代码。
+
+> A toolchain is a set of commands and build flags used to compile the source
+> code. The toolchain() function defines these commands.
+
+toolchain函数本身包括下面几种预定义函数和预定义变量
+
+* tool函数，用于定义命令行
+* toolchain_args变量，用于传递参数给特定的toolchain
+
+* propagates_configs变量
+* deps变量
+
+举个例子，如下
+
+```properties
+template("ios_toolchain") {
+  toolchain(target_name) {
+    assert(defined(invoker.toolchain_args),
+           "Toolchains must declare toolchain_args")
+
+    toolchain_args = {
+      forward_variables_from(invoker.toolchain_args, "*")
+    }
+
+    _sdk_info = exec_script("//build/config/ios/scripts/sdk_info.py",
+                            [
+                              "--target-cpu",
+                              current_cpu,
+                              "--target-environment",
+                              target_environment,
+                              "--deployment-target",
+                              ios_deployment_target,
+                            ],
+                            "json")
+
+    cc = "clang -target ${_sdk_info.target} -isysroot ${_sdk_info.sdk_path}"
+    cxx = "clang++ -target ${_sdk_info.target} -isysroot ${_sdk_info.sdk_path}"
+    
+    tool("objc") {
+      depfile = "{{output}}.d"
+      precompiled_header_type = "gcc"
+      command = "$cc -MMD -MF $depfile {{defines}} {{include_dirs}} {{framework_dirs}} {{cflags}} {{cflags_objc}} -c {{source}} -o {{output}}"
+      depsformat = "gcc"
+      description = "OBJC {{output}}"
+      outputs = [ "{{target_out_dir}}/{{label_name}}/{{source_name_part}}.o" ]
+    }
+  }
+}
+
+ios_toolchain("clang_x86") {
+  toolchain_args = {
+    current_cpu = "x86"
+    current_os = "ios"
+  }
+}
+
+ios_toolchain("clang_x64") {
+  toolchain_args = {
+    current_cpu = "x64"
+    current_os = "ios"
+  }
+}
+
+ios_toolchain("clang_arm") {
+  toolchain_args = {
+    current_cpu = "arm"
+    current_os = "ios"
+  }
+}
+
+ios_toolchain("clang_arm64") {
+  toolchain_args = {
+    current_cpu = "arm64"
+    current_os = "ios"
+  }
+}
+```
+
+这里使用template函数定义了一个模板ios_toolchain，然后使用这个ios_toolchain模板定义了4个toolchain，分别是clang_x86、clang_x64、clang_arm和clang_arm64。
+
+通过toolchain_args变量，将不同的current_cpu和current_os传给对应的toolchain。
+
+每个toolchain中，在执行sdk_info.py脚本时，用到current_cpu变量，以便获取目标cpu架构。
+
+说明
+
+> 在每个toolchain中，也定义toolchain_args变量，并使用forward_variables_from函数，做了一次转发才获取到在ios_toolchain调用中的current_cpu变量和current_os变量。
 
 
 
@@ -1509,9 +1662,21 @@ root_gen_dir变量，表示特定toolchain编译后生成的文件夹。
 
 
 
-### (6) 其他话题
+## 5、GN其他话题
 
-#### a. buildargs（编译参数）
+这部分内容来自GN手册。
+
+### (1) `.gn`文件
+
+#### a.  `.gn`文件的变量
+
+##### script_executable
+
+
+
+
+
+### (2) buildargs（编译参数）
 
 buildargs的定义，如下
 
@@ -1532,7 +1697,7 @@ buildargs的定义，如下
 
 
 
-#### b. Build graph and execution overview
+### (3) Build graph and execution overview
 
 GN的完整编译流，分为六个步骤，如下
 
@@ -1554,11 +1719,7 @@ GN的完整编译流，分为六个步骤，如下
 
 
 
-
-
-
-
-## 5、GN配置文件模板
+## 6、GN配置文件模板
 
 使用GN可以配置各个编译工具链，实际上这些工具链的配置，根据各个平台，大部分是一样的，因此有人提供了一套配置文件，git仓库是https://github.com/timniederhausen/gn-build
 
@@ -1594,7 +1755,7 @@ GN的完整编译流，分为六个步骤，如下
 
 
 
-## 6、跨平台编译(Cross complie)
+## 7、跨平台编译(Cross complie)
 
 Cross complie（跨平台编译），在中文经常称为交叉编译，个人觉得这个词比较难解，不如叫做跨平台编译。它的意思是，编译源码的可执行文件不是在当前执行编译的机器上运行，而是特定平台(Android/iOS)上运行。
 
@@ -1610,9 +1771,7 @@ Cross complie（跨平台编译），在中文经常称为交叉编译，个人�
 
 
 
-
-
-## 7、Ninja
+## 8、Ninja
 
 Ninja是小型的编译系统，它有两个特点：
 
