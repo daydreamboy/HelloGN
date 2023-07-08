@@ -253,7 +253,7 @@ $ tree -a .
 
 #### c. `.gn`文件
 
-`.gn`文件是工程，根目录配置文件，一般很简单内容，如下
+`.gn`文件是工程的根目录配置文件，一般很简单内容，如下
 
 ```properties
 buildconfig = "//build/BUILDCONFIG.gn"
@@ -291,15 +291,54 @@ set_default_toolchain("//build/toolchains:gcc")
 
 `BUILDCONFIG.gn`是GN入口配置文件，它的作用是[^11]
 
-> \# This is the master GN build configuration. This file is loaded after the
-\# build args (args.gn) for the build directory and after the toplevel ".gn"
-\# file (which points to this file as the build configuration).
-\#
-\# This file will be executed and the resulting context will be used to execute
-\# every other file in the build. So variables declared here (that don't start
-\# with an underscore) will be implicitly global.
+* 定义全局变量
 
-`BUILDCONFIG.gn`会在加载`args.gn`和`.gn`之后再加载，而且每次执行文件build，都会使用这个文件提供context，因此可以在该文件定义全局变量。
+`BUILDCONFIG.gn`会在加载`args.gn`和`.gn`之后再加载，而且每次执行文件build，都会使用这个文件提供context，因此可以在该文件定义全局变量。全局变量是指定义没有使用`_`作为前缀的变量。
+
+* 选择平台
+
+选择平台，主要是指通过gn args指定target_os和target_cpu，那么在`BUILDCONFIG.gn`中，决定了对应的toolchain。实际toolchain是包含os和cpu的编译配置的名称。
+
+
+
+在gn-build的BUILDCONFIG.gn中的注释[^11]，如下
+
+> \# This is the master GN build configuration. This file is loaded after the
+> \# build args (args.gn) for the build directory and after the toplevel ".gn"
+> \# file (which points to this file as the build configuration).
+> \#
+> \# This file will be executed and the resulting context will be used to execute
+> \# every other file in the build. So variables declared here (that don't start
+> \# with an underscore) will be implicitly global.
+>
+> \# =============================================================================
+> \# PLATFORM SELECTION
+> \# =============================================================================
+> \#
+> \# There are two main things to set: "os" and "cpu". The "toolchain" is the name
+> \# of the GN thing that encodes combinations of these things.
+> \#
+> \# Users typically only set the variables "target_os" and "target_cpu" in "gn
+> \# args", the rest are set up by our build and internal to GN.
+> \#
+> \# There are three different types of each of these things: The "host"
+> \# represents the computer doing the compile and never changes. The "target"
+> \# represents the main thing we're trying to build. The "current" represents
+> \# which configuration is currently being defined, which can be either the
+> \# host, the target, or something completely different (like nacl). GN will
+> \# run the same build file multiple times for the different required
+> \# configuration in the same build.
+> \#
+> \# This gives the following variables:
+> \#  - host_os, host_cpu, host_toolchain
+> \#  - target_os, target_cpu, default_toolchain
+> \#  - current_os, current_cpu, current_toolchain.
+> \#
+> \# Note the default_toolchain isn't symmetrical (you would expect
+> \# target_toolchain). This is because the "default" toolchain is a GN built-in
+> \# concept, and "target" is something our build sets up that's symmetrical with
+> \# its GYP counterpart. Potentially the built-in default_toolchain variable
+> \# could be renamed in the future.
 
 
 
@@ -517,7 +556,7 @@ GN语言的数据类型，有下面几种
 
 
 
-### (1) Strings
+### (1) 字符串(Strings)
 
 使用双引号`"`表示字符串，使用`\`做转义符。仅能支持的转义，如下
 
@@ -526,6 +565,10 @@ GN语言的数据类型，有下面几种
 * `\\`，转义`\`符号
 
 其他形式反斜杠都表示字面的反斜杠，举个例子`"C:\foo\bar.h"`中不会认为`\b`是转义的。
+
+
+
+#### a. 变量替换($)
 
 使用`$`进行变量替换，也可选的使用`${var}`形式。举个例子，如下
 
@@ -537,7 +580,7 @@ c = "foo${a}bar.cc"  # c -> "foomypathbar.cc"
 
 
 
-### (2) Lists
+### (2) 列表(Lists)
 
 列表不能获取长度，判断是否空的列表，可以采用`a == []`方式。
 
@@ -585,7 +628,7 @@ a = [ "two" ]  # OK
 
 
 
-### (3) Conditionals
+### (3) 条件语句(Conditionals)
 
 条件语句和C是一样的。举个例子，如下
 
@@ -601,7 +644,7 @@ a = [ "two" ]  # OK
 
 
 
-### (4) Looping
+### (4) 循环语句(Looping)
 
 循环语句使用foreach。举个例子，如下
 
@@ -613,9 +656,11 @@ foreach(i, mylist) {
 
 
 
-### (5) Function calls
+### (5) 函数(Function)
 
-函数调用和C一样。举个例子，如下
+* 函数调用和C一样。
+
+举个例子，如下
 
 ```c
 print("hello, world")
@@ -626,7 +671,9 @@ assert(is_win, "This should only be executed on Windows")
 
 > 函数都是内置的，用户不能定义函数
 
-某些函数可以带闭包。举个例子，如下
+* 某些函数可以带闭包
+
+举个例子，如下
 
 ```c
 static_library("mylibrary") {
@@ -636,15 +683,24 @@ static_library("mylibrary") {
 
 
 
-### (6) Scoping and execution
+### (6) 作用域(Scoping)
 
 Scoping是指文件中，或函数调用，使用`{ }`。类似C的作用域。
 
 
 
-### (7) 文件和文件夹命名
+### (7) 命名引用
 
-文件和文件夹命名都是字符串，有三种形式
+在GN语法中有特定引用的方式。根据引用对象的类型而不同
+
+* 文件和文件夹的引用
+* 标号(label)引用
+
+
+
+#### a. 文件和文件夹的引用
+
+文件和文件夹的引用都是字符串，有三种形式
 
 * 相对路径 (Relative names)
 
@@ -670,9 +726,33 @@ Scoping是指文件中，或函数调用，使用`{ }`。类似C的作用域。
 
 
 
+#### b. 标号(label)引用
+
+标号(label)引用，用于依赖关系。target、config、toolchain对象使用标号引用，来建立依赖关系。
+
+标号(label)引用的格式，有几种形式
+
+* 使用根路径，例如"//base/test:test_support"
+  * 在gn工程根目录下，base/test/BUILD.gn中查找名为test_support的对象。该对象可能是target、config或toolchain
+* 当前buildfile文件，例如":base"
+  * 在相同的buildfile文件，查找名为base的对象
+
+* 相对路径，例如
+  * "source/plugin:myplugin"。在同级source/plugin/BUILD.gn，查找名为myplugin的对象
+  * "../net:url_request"。在上级net/BUILD.gn，查找名为url_request的对象
+
+对象的名字是可以省略的。如果省略，则认为和最后一个文件夹同名。例如
+
+```properties
+"//net" = "//net:net"
+"//tools/gn" = "//tools/gn:gn"
+```
+
+
+
 ### (8) 编译配置
 
-#### a. Targets
+#### a. Target对象
 
 官方文档对target定义[^4]，如下
 
@@ -706,7 +786,7 @@ target类型，有下面一些
 
 
 
-#### b. Configs
+#### b. Config对象
 
 官方文档对config定义[^4]，如下
 
@@ -1040,19 +1120,392 @@ TODO
 
 ### (3) 内置函数(Buildfile functions)
 
-TODO
+buildfile文件(BUILD.gn、BUILDCONFIG.gn)存在一些内置函数，可以直接使用。
+
+| 内置函数               | 作用                                              |
+| ---------------------- | ------------------------------------------------- |
+| assert                 | Assert an expression is true at generation time.  |
+| config                 | Defines a configuration object                    |
+| declare_args           | Declare build arguments                           |
+| defined                | Returns whether an identifier is defined          |
+| exec_script            | Synchronously run a script and return the output  |
+| filter_exclude         | Remove values that match a set of patterns        |
+| filter_include         | Remove values that do not match a set of patterns |
+| foreach                | Iterate over a list                               |
+| forward_variables_from | Copies variables from a different scope           |
+| get_label_info         | Get an attribute from a target's label            |
+| get_path_info          | Extract parts of a file or directory name         |
+| get_target_outputs     | [file list] Get the list of outputs from a target |
+| getenv                 | Get an environment variable                       |
+| import                 | Import a file into the current scope              |
+| not_needed             | Mark variables from scope as not needed           |
+| pool                   | Defines a pool object                             |
+| print                  | Prints to the console                             |
+| print_stack_trace      | Prints a stack trace                              |
+| process_file_template  | Do template expansion over a list of files        |
+| read_file              | Read a file into a variable                       |
+| rebase_path            | Rebase a file or directory to another location    |
+| set_default_toolchain  | Sets the default toolchain name                   |
+| set_defaults           | Set default values for a target type              |
+| split_list             | Splits a list into N different sub-lists          |
+| string_join            | Concatenates a list of strings with a separator   |
+| string_replace         | Replaces substring in the given string            |
+| string_split           | Split string into a list of strings               |
+| template               | Define a template rule                            |
+| tool                   | Specify arguments to a toolchain tool             |
+| toolchain              | Defines a toolchain                               |
+| write_file             | Write a file to disk                              |
 
 
 
-### (4) 内置预定义变量
+#### assert
 
-TODO
+assert函数。举个例子，如下
+
+```properties
+assert(target_environment == "simulator" || target_environment == "device",
+"Only supported values for target_environment are 'simulator' and 'device'")
+```
 
 
 
-### (5) 需用户设置的变量
+#### config
 
-TODO
+config函数，用于定义一个配置对象(configuration object)
+
+举个例子，如下
+
+```properties
+config("myconfig") {
+  include_dirs = [ "include/common" ]
+  defines = [ "ENABLE_DOOM_MELON" ]
+}
+
+executable("mything") {
+  configs = [ ":myconfig" ]
+}
+```
+
+上面定义一个名为myconfig的配置对象，在名为mything的target中用到这个配置对象myconfig
+
+config对象的引用，和target，使用标号
+
+> A config is referenced by its label just like a target.
+
+
+
+#### declare_args
+
+declare_args函数，相当于声明一些默认编译参数。如果在gn命令行的参数、toolchain参数都没有指定编译参数，则会使用declare_args函数中声明的变量。
+
+官方文档描述[^12]，如下
+
+> Introduces the given arguments into the current scope. If they are not
+> specified on the command line or in a toolchain's arguments, the default
+> values given in the declare_args block will be used. However, these defaults
+> will not override command-line values.
+
+举个例子，如下
+
+```properties
+declare_args() {
+    enable_teleporter = true
+    enable_doom_melon = false
+}
+```
+
+当执行`gn --args="enable_doom_melon=true enable_teleporter=true"`，上面enable_doom_melon参数的值会被覆盖成true。
+
+说明
+
+> 在同一个declare_args函数的作用域(scope)中，不能读取变量，只能在另个一个declare_args函数的作用域中读取。举个例子，如下
+>
+> ```properties
+> declare_args() {
+>   enable_foo = true
+> }
+> declare_args() {
+>   # Bar defaults to same user-overridden state as foo.
+>   enable_bar = enable_foo
+> }
+> ```
+>
+> 
+
+
+
+#### exec_script
+
+exec_script函数，作用是同步执行一个脚本，并返回输出
+
+语法格式：
+
+```properties
+exec_script(filename,
+            arguments = [],
+            input_conversion = "",
+            file_dependencies = [])
+```
+
+* filename，脚本路径。如果是相对路径，则相当于当前buildfile
+* arguments，传递给脚本的参数
+* input_conversion，确定按照哪种格式读取脚本的输出内容。该字段默认值是""，表示丢掉输出内容。常见的值有："json"、"string"等。使用`gn help io_conversion`查看所有支持的格式。
+* file_dependencies，确定脚本需要依赖哪些文件，这些文件可能被脚本操作。
+  * 使用file_dependencies字段，而不是arguments字段，是为了确定依赖关系，这些当依赖的文件发生变化时，执行gn编译可以重新触发脚本执行
+
+举个例子，如下
+
+```properties
+all_lines = exec_script(
+    "myscript.py", [some_input], "list lines",
+    [ rebase_path("data_file.txt", root_build_dir) ])
+
+# This example just calls the script with no arguments and discards the
+# result.
+exec_script("//foo/bar/myscript.py")
+```
+
+第一个执行脚本myscript.py，并将脚本的输出，按照每行的形式，转成数组
+
+第二个执行脚本myscript.py，没有接收脚本的输出
+
+再举一个例子，如下
+
+```properties
+_sdk_info = exec_script("//build/config/ios/scripts/sdk_info.py",
+                        [
+                          "--target-cpu",
+                          current_cpu,
+                          "--target-environment",
+                          target_environment,
+                          "--deployment-target",
+                          ios_deployment_target,
+                        ],
+                        "json")
+```
+
+这里脚本的输出按照JSON格式解析，并赋值给_sdk_info变量。
+
+
+
+#### import
+
+import函数，用于导入一个文件到当前作用域中
+
+举个例子，如下
+
+```properties
+import("//build/rules/idl_compilation_rule.gni")
+
+# Looks in the current directory.
+import("my_vars.gni")
+```
+
+按照约定被导入文件，需要后缀名`.gni`。
+
+> By convention, imported files are named with a .gni extension.
+
+不同于C++的include方式，import函数会执行被导入文件，这个结果会被缓存起来，方便其他文件也导入该文件，最后把结果，即变量、rule等合并到当前作用域中。
+
+> An import is different than a C++ "include". The imported file is executed in
+> a standalone environment from the caller of the import command. The results
+> of this execution are cached for other files that import the same .gni file.
+
+如果合并存在变量冲突，则gn执行过程中会报错。
+
+> The imported file's scope will be merged with the scope at the point import
+> was called. If there is a conflict (both the current scope and the imported
+> file define some variable or rule with the same name but different value), a
+> runtime error will be thrown. Therefore, it's good practice to minimize the
+> stuff that an imported file defines.
+
+如果被导入文件中存在私有变量，则这些变量是不会被导入的。
+
+> Variables and templates beginning with an underscore '_' are considered
+> private and will not be imported. Imported files can use such variables for
+> internal computation without affecting other files.
+
+
+
+#### set_default_toolchain
+
+set_default_toolchain函数，用于设置toolchain的名字
+
+语法格式：set_default_toolchain(toolchain_label)
+
+举个例子，如下
+
+```properties
+# Set default toolchain only has an effect when run in the context of the
+# default toolchain. Pick the right one according to the current CPU
+# architecture.
+if (target_cpu == "x64") {
+  set_default_toolchain("//toolchains:64")
+} else if (target_cpu == "x86") {
+  set_default_toolchain("//toolchains:32")
+}
+```
+
+
+
+
+
+#### set_defaults
+
+set_defaults函数用于给特定的target类型，设置一些默认值。
+
+语法：set_defaults(<target_type_name>) { <values...> }
+
+举个例子，如下
+
+```properties
+set_defaults("executable") {
+  configs = _shared_binary_target_configs
+  configs += [ "//build:shared_binary" ]
+}
+set_defaults("static_library") {
+  configs = _shared_binary_target_configs
+}
+set_defaults("shared_library") {
+  configs = _shared_binary_target_configs
+  configs += [ "//build:shared_binary" ]
+}
+set_defaults("source_set") {
+  configs = _shared_binary_target_configs
+}
+```
+
+这里target类型(target type)是内置定义的，例如"executable"、"static_library"、"shared_library"、"source_set"等。
+
+_shared_binary_target_configs是私有变量，不是全局变量，用于存放一些公共配置。
+
+如果某个特定的target还需要额外配置，可以在定义target时指定编译参数。举个例子，如下
+
+```properties
+set_defaults("static_library") {
+  configs = [ "//tools/mything:settings" ]
+}
+
+static_library("mylib") {
+  # The configs will be auto-populated as above. You can remove it if
+  # you don't want the default for a particular default:
+  configs -= [ "//tools/mything:settings" ]
+}
+```
+
+这里定义名为mylib的静态库target，它具备默认参数，还移除一些特定参数。
+
+
+
+
+
+### (4) 内置预定义变量(Built-in predefined variables)
+
+| 内置预定义变量    | 类型   | 作用                                                |
+| ----------------- | ------ | --------------------------------------------------- |
+| current_cpu       | string | The processor architecture of the current toolchain |
+| current_os        | string | The operating system of the current toolchain.      |
+| current_toolchain | string | Label of the current toolchain                      |
+| default_toolchain | string | Label of the default toolchain                      |
+| gn_version        | string | The version of gn                                   |
+| host_cpu          | string | The processor architecture that GN is running on    |
+| host_os           | string | The operating system that GN is running on          |
+| invoker           | string | The invoking scope inside a template                |
+| python_path       | string | Absolute path of Python                             |
+| root_build_dir    | string | Directory where build commands are run              |
+| root_gen_dir      | string | Directory for the toolchain's generated files       |
+| root_out_dir      | string | Root directory for toolchain output files           |
+| target_cpu        | string | The desired cpu architecture for the build          |
+| target_gen_dir    | string | Directory for a target's generated files            |
+| target_name       | string | The name of the current target                      |
+| target_os         | string | The desired operating system for the build          |
+| target_out_dir    | string | Directory for target output files                   |
+
+这里有三种不同类型的概念[^11]：host、target、current
+
+* host，代表执行编译的机器，并且不会改变
+* target，代表编译的目标
+* current，代表当前哪个对象的编译配置，可能host或者target，或者两者都不是
+
+基于上面三种类型，存在下面几种预定义变量
+
+* current_os, current_cpu, current_toolchain
+
+* host_os, host_cpu, host_toolchain
+* target_os, target_cpu, default_toolchain
+
+注意，default_toolchain和target_toolchain不是同义的，default_toolchain是GN内置的概念。
+
+> 一般来说，在gn命令的args参数中仅设置target_os和target_cpu，剩余的参数在GN配置中。
+
+可以参考官方的examples/ios/build/BUILDCONFIG.gn，如下
+
+```javascript
+if (target_os == "") {
+  target_os = "ios"
+}
+if (target_cpu == "") {
+  target_cpu = host_cpu
+}
+if (current_cpu == "") {
+  current_cpu = target_cpu
+}
+if (current_os == "") {
+  current_os = target_os
+}
+```
+
+可以看到current_cpu和host_cpu以及target_cpu关系如下
+
+```properties
+current_cpu = target_cpu (这个优先)
+or 
+current_cpu = host_cpu
+```
+
+这里外部使用者(gn命令执行者)，设置target_cpu，在BUILDCONFIG.gn中，会将它设置给current_cpu。至于host_cpu，它是一个缺省值，如果外部使用没有设置target_cpu，则设置host_cpu。
+
+current_os也是一样的逻辑。
+
+
+
+#### root_gen_dir
+
+root_gen_dir变量，表示特定toolchain编译后生成的文件夹。
+
+例如
+
+```
+"//out/Debug/gen" for the default toolchain
+"//out/Debug/arm/gen" for the "arm" toolchain.
+```
+
+
+
+
+
+### (5) 用户target变量(Variables you set in targets)
+
+用户target变量是指用户编写GN编译配置时，需要设置给target的变量
+
+> 个人感觉，用户target变量和内置预定义变量，区别不大。
+
+用户target变量是GN已经定义好命名，需要查看官方文档[^12]得知变量名的含义和作用。
+
+这里只列出常用的变量名，如下
+
+| 变量名       | 类型          | 作用                                       |
+| ------------ | ------------- | ------------------------------------------ |
+| cflags       | [string list] | Flags passed to all C compiler variants    |
+| cflags_c     | [string list] | Flags passed to the C compiler             |
+| cflags_cc    | [string list] | Flags passed to the C++ compiler           |
+| cflags_objc  | [string list] | Flags passed to the Objective C compiler   |
+| cflags_objcc | [string list] | Flags passed to the Objective C++ compiler |
+| ldflags      | [string list] | Flags passed to the linker                 |
+
+
+
+
 
 
 
@@ -1099,10 +1552,6 @@ GN的完整编译流，分为六个步骤，如下
 
 
 
-#### c. GN语言
-
-
-
 
 
 
@@ -1145,7 +1594,25 @@ GN的完整编译流，分为六个步骤，如下
 
 
 
-## 6、Ninja
+## 6、跨平台编译(Cross complie)
+
+Cross complie（跨平台编译），在中文经常称为交叉编译，个人觉得这个词比较难解，不如叫做跨平台编译。它的意思是，编译源码的可执行文件不是在当前执行编译的机器上运行，而是特定平台(Android/iOS)上运行。
+
+假设开发使用MacOS系统，那么跨平台编译，主要针对Android/iOS/Windows/Linux等，这里以开发环境使用MacOS系统做介绍。
+
+
+
+### (1) iOS系统
+
+
+
+
+
+
+
+
+
+## 7、Ninja
 
 Ninja是小型的编译系统，它有两个特点：
 
@@ -1400,4 +1867,6 @@ ninja.rule(name='foo', command='bar', depfile='$out.d')
 [^10]:https://blog.simplypatrick.com/posts/2016/01-23-gn/
 
 [^11]:https://github.com/timniederhausen/gn-build/blob/master/config/BUILDCONFIG.gn#L6
+
+[^12]:https://gn.googlesource.com/gn/+/main/docs/reference.md
 
