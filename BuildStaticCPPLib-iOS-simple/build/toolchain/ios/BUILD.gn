@@ -96,6 +96,16 @@ template("ios_toolchain") {
       outputs = [ "{{target_out_dir}}/{{label_name}}/{{source_name_part}}.o" ]
     }
 
+    tool("alink") {
+      command = "rm -f {{output}} && ar rcs {{output}} {{inputs}}"
+      description = "AR {{target_output_name}}{{output_extension}}"
+
+      outputs =
+          [ "{{target_out_dir}}/{{target_output_name}}{{output_extension}}" ]
+      default_output_extension = ".a"
+      output_prefix = "lib"
+    }
+
     tool("stamp") {
       command = "touch {{output}}"
       description = "STAMP {{output}}"
