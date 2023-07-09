@@ -1453,7 +1453,187 @@ ios_toolchain("clang_arm64") {
 
 #### tool
 
-tool函数。TODO
+tool函数，用于指定toolchain中的工具参数。
+
+语法格式：
+
+```properties
+tool(<tool type>) {
+  <tool variables...>
+}
+```
+
+这里的tool type是GN预定义的字符串，用于执行特定任务。
+
+举个例子，如下
+
+```properties
+tool("cc") {
+  depfile = "{{output}}.d"
+  precompiled_header_type = "gcc"
+  command = "$cc -MMD -MF $depfile {{defines}} {{include_dirs}} {{cflags}} {{cflags_c}} -c {{source}} -o {{output}}"
+  depsformat = "gcc"
+  description = "CC {{output}}"
+  outputs = [ "{{target_out_dir}}/{{label_name}}/{{source_name_part}}.o" ]
+}
+```
+
+上面指定cc工具的一些参数，其中参数就是tool variables，而类似{{output}}是tool variables的扩展。
+
+
+
+##### tool type
+
+tool type的类型，如下
+
+* 编译工具(Compiler tools)
+
+```properties
+Compiler tools:
+  "cc": C compiler
+  "cxx": C++ compiler
+  "cxx_module": C++ compiler used for Clang .modulemap files
+  "objc": Objective C compiler
+  "objcxx": Objective C++ compiler
+  "rc": Resource compiler (Windows .rc files)
+  "asm": Assembler
+  "swift": Swift compiler driver
+```
+
+* 链接工具(linker tools)
+
+```properties
+Linker tools:
+  "alink": Linker for static libraries (archives)
+  "solink": Linker for shared libraries
+  "link": Linker for executables
+```
+
+* 其他工具(Other tools)
+
+```properties
+Other tools:
+  "stamp": Tool for creating stamp files
+  "copy": Tool to copy files.
+  "action": Defaults for actions
+```
+
+* iOS/Mac平台特定工具
+
+```properties
+Platform specific tools:
+  "copy_bundle_data": [iOS, macOS] Tool to copy files in a bundle.
+  "compile_xcassets": [iOS, macOS] Tool to compile asset catalogs.
+```
+
+* rust工具
+
+```properties
+Rust tools:
+  "rust_bin": Tool for compiling Rust binaries
+  "rust_cdylib": Tool for compiling C-compatible dynamic libraries.
+  "rust_dylib": Tool for compiling Rust dynamic libraries.
+  "rust_macro": Tool for compiling Rust procedural macros.
+  "rust_rlib": Tool for compiling Rust libraries.
+  "rust_staticlib": Tool for compiling Rust static libraries.
+```
+
+
+
+##### tool variables
+
+tool variables也是GN预定义的变量，用于在tool函数作用域中。
+
+每种tool variables，可能适用于全部tool type，也可能适用于特定的tool type。
+
+| tool variables                   | 适用于tool type           | 作用                                                         |
+| -------------------------------- | ------------------------- | ------------------------------------------------------------ |
+| command                          | 所有工具，除了action type | 每种tool类型，具体需要运行的命令行字符串                     |
+| command_launcher                 | 所有工具，除了action type | TODO                                                         |
+| default_output_dir               | 链接工具                  | 输出文件所在的文件夹名字，相对于root_build_dir。如果不指定，则默认值等于{{output_dir}} |
+| default_output_extension         | 链接工具                  | 指定链接产物的扩展名，需要包含`.`。如果不指定，则默认值等于{{output_extension}} |
+| depfile                          | 编译工具                  | 如果工具可以生成`.d`文件，则这个变量描述文件名               |
+| depsformat                       | 编译工具                  | 它的值是gcc或者msvc。具体参考ninja的deps文档                 |
+| description                      | 所有工具                  | 当命令行执行时，打印出来的描述信息                           |
+| exe_output_extension             | rust工具                  |                                                              |
+| rlib_output_extension            | rust工具                  |                                                              |
+| dylib_output_extension           | rust工具                  |                                                              |
+| cdylib_output_extension          | rust工具                  |                                                              |
+| rust_proc_macro_output_extension | rust工具                  |                                                              |
+| lib_switch                       | 链接工具                  | 指定库的flag前缀，例如"-l"                                   |
+| lib_dir_switch                   | 链接工具，除了alink       | 指定库所在文件夹的flag前缀，例如"-L"                         |
+| framework_switch                 | 链接工具                  | 指定framework的flag前缀，例如"-framework"                    |
+| weak_framework_switch            | 链接工具                  | 指定framework的flag前缀，例如"-weak_framework"               |
+| framework_dir_switch             | 链接工具                  | 指定framework所在文件夹的flag前缀，例如"-F"                  |
+| swiftmodule_switch               | 链接工具，除了alink       | TODO                                                         |
+| outputs                          | 编译工具或链接工具        | 输出文件名的数组，路径相对于build输出文件夹                  |
+| partial_outputs                  | swift工具                 | TODO                                                         |
+| pool                             | 所有工具                  | 用于限制并行执行的任务数                                     |
+| link_output                      | solink工具                |                                                              |
+| depend_output                    | solink工具                |                                                              |
+| output_prefix                    | 链接工具                  | 输出名字的前缀。例如"lib"。默认是空的                        |
+| precompiled_header_type          | cc、cxx、objc、objcxx工具 | TODO                                                         |
+| restat                           | 所有工具                  | TODO                                                         |
+| rspfile                          | 所有工具，除了action type | response文件的名字                                           |
+| rspfile_content                  | 所有工具，除了action type | TODO                                                         |
+| runtime_outputs                  | 链接工具                  | TODO                                                         |
+| rust_sysroot                     | rust工具                  | TODO                                                         |
+
+
+
+##### tool variables的扩展
+
+tool variables的扩展，用于tool variables的值中，是字符串替换。
+
+tool variables的扩展适用于所有工具。
+
+| tool variables的扩展          | 作用                                                         |
+| ----------------------------- | ------------------------------------------------------------ |
+| {{label}}                     | 当前target的label                                            |
+| {{label_name}}                | targeg的label名字。例如，标号"//foo/bar:baz"的名字是baz      |
+| {{label_no_toolchain}}        | 当前target的label，但除了toolchain                           |
+| {{output}}                    | 当前的输出相对路径。例如"out/base/my_file.o"                 |
+| {{target_gen_dir}}            | 当前target的generated文件夹                                  |
+| {{target_out_dir}}            | 当前target的output文件夹。例如"out/base/test"                |
+| {{target_output_name}}        | 当前target的短名字，它包含output_name和output_prefix两部分。例如target名字是foo，output_prefix是lib，则{{target_output_name}}的值是libfoo |
+| {{asmflags}}                  | 对应用户target变量asmflags                                   |
+| {{cflags}}                    | 对应用户target变量cflags                                     |
+| {{cflags_c}}                  | 对应用户target变量cflags_c                                   |
+| {{cflags_cc}}                 | 对应用户target变量cflags_cc                                  |
+| {{cflags_objc}}               | 对应用户target变量cflags_objc                                |
+| {{cflags_objcc}}              | 对应用户target变量cflags_objcc                               |
+| {{defines}}                   | 对应用户target变量defines                                    |
+| {{include_dirs}}              | 对应用户target变量include_dirs                               |
+| {{module_deps}}               |                                                              |
+| {{module_deps_no_self}}       |                                                              |
+| {{source}}                    | 输入文件的相对路径。例如"../../base/my_file.cc"              |
+| {{source_file_part}}          | 输入文件的文件名。例如"foo.cc"                               |
+| {{source_name_part}}          | 输入文件的文件名字，没有后缀名。例如"foo"                    |
+| {{source_gen_dir}}            | 输入文件的gen文件夹                                          |
+| {{source_out_dir}}            | 输入文件的output文件夹                                       |
+| {{inputs}}                    | 链接工具的输入文件，例如"obj/foo.o obj/bar.o obj/somelibrary.a" |
+| {{inputs_newline}}            | 有些linker不是空格分隔，而是换行符分隔符，那么使用{{inputs_newline}} |
+| {{ldflags}}                   | ld flags和library search paths。例如"-m64 -fPIC -pthread -L/usr/local/mylib" |
+| {{libs}}                      | 链接器的库参数，包含lib_switch指定的前缀。例如"-lfoo -lbar"  |
+| {{output_dir}}                | target的输出文件夹，不同于{{target_out_dir}}。后者是用于object文件或者其他文件 |
+| {{output_extension}}          | target的扩展名。例如".so"                                    |
+| {{solibs}}                    | 例如"libfoo.so libbar.so"                                    |
+| {{rlibs}}                     | 例如"obj/foo/libfoo.rlib"                                    |
+| {{frameworks}}                | Apple的framework名字，没有后缀                               |
+| {{swiftmodules}}              | TODO                                                         |
+| {{arflags}}                   | alink工具使用的扩展                                          |
+| {{bundle_product_type}}       |                                                              |
+| {{bundle_partial_info_plist}} |                                                              |
+| {{xcasset_compiler_flags}}    |                                                              |
+| {{module_name}}               |                                                              |
+| {{module_dirs}}               |                                                              |
+| {{swiftflags}}                |                                                              |
+| {{crate_name}}                |                                                              |
+| {{crate_type}}                |                                                              |
+| {{externs}}                   |                                                              |
+| {{rustdeps}}                  |                                                              |
+| {{rustenv}}                   |                                                              |
+| {{rustflags}}                 |                                                              |
 
 
 
@@ -1654,6 +1834,7 @@ root_gen_dir变量，表示特定toolchain编译后生成的文件夹。
 | cflags_cc    | [string list] | Flags passed to the C++ compiler           |
 | cflags_objc  | [string list] | Flags passed to the Objective C compiler   |
 | cflags_objcc | [string list] | Flags passed to the Objective C++ compiler |
+| include_dirs |               |                                            |
 | ldflags      | [string list] | Flags passed to the linker                 |
 
 
