@@ -5,7 +5,7 @@
 
 ## 1、介绍GN
 
-GN是Chromium、Fuchsia等工程使用的编译系统，它可以生成C/C++、Rust、Objective-C、Swift等对应的Ninja编译文件。
+GN是[Chromium](https://github.com/chromium/chromium)、Fuchsia等工程使用的编译系统，它可以生成C/C++、Rust、Objective-C、Swift等对应的Ninja编译文件。
 
 参考官方文档描述[^1]，如下
 
@@ -21,12 +21,18 @@ GN是Chromium、Fuchsia等工程使用的编译系统，它可以生成C/C++、R
 
 我猜测，GN是Generate Ninja的缩写。
 
-说明
 
-> 1. [GN主页](https://gn.googlesource.com/gn/+/master)
-> 2. [GN手册](https://gn.googlesource.com/gn/+/main/docs/reference.md)
-> 3. GN的[QuickStart](https://gn.googlesource.com/gn/+/main/docs/quick_start.md)
-> 4. GN的[Q&A](https://gn.googlesource.com/gn/+/main/docs/faq.md)
+
+### (1) GN文档
+
+GN是Google出品的编译工具，目前它的文档不多，主要在
+
+* GN仓库的[docs文件夹](https://gn.googlesource.com/gn/+/main/docs/)
+  * [GN主页](https://gn.googlesource.com/gn/+/master)
+  * [GN手册](https://gn.googlesource.com/gn/+/main/docs/reference.md)
+  * GN的[QuickStart](https://gn.googlesource.com/gn/+/main/docs/quick_start.md)
+  * GN的[Q&A](https://gn.googlesource.com/gn/+/main/docs/faq.md)
+* chromium仓库下gn/.../[docs文件夹](https://chromium.googlesource.com/chromium/src/tools/gn/+/48062805e19b4697c5fbd926dc649c78b6aaa138/docs/)
 
 
 
@@ -67,9 +73,11 @@ ninja: Entering directory `out'
 >
 >    
 
-完成上面的编译，在out文件夹下，会有gn可执行文件
+完成上面的编译，在out文件夹下，会有gn可执行文件。
 
 
+
+## 3、使用GN
 
 ### (1) 第一个GN编译的程序
 
@@ -508,7 +516,7 @@ https://blog.simplypatrick.com/posts/2016/01-23-gn/
 
 
 
-## 3、GN语法
+## 4、GN语法
 
 在上面BUILD.gn文件中已经看到GN语法，完整的编写语法，可以参考官方这篇文档[^4]。
 
@@ -914,7 +922,7 @@ TODO: https://chromium.googlesource.com/chromium/src/build/+/refs/heads/main/doc
 
 
 
-## 4、GN手册
+## 5、GN手册
 
 GN手册[^7]主要分为下面几个部分
 
@@ -1914,7 +1922,7 @@ sources变量的值是一组文件路径。文件路径是相当于当前build f
 
 
 
-## 5、GN其他话题
+## 6、GN其他话题
 
 这部分内容来自GN手册。
 
@@ -1971,7 +1979,7 @@ GN的完整编译流，分为六个步骤，如下
 
 
 
-## 6、GN配置文件模板
+## 7、GN配置文件模板
 
 使用GN可以配置各个编译工具链，实际上这些工具链的配置，根据各个平台，大部分是一样的，因此有人提供了一套配置文件，git仓库是https://github.com/timniederhausen/gn-build
 
@@ -2007,7 +2015,7 @@ GN的完整编译流，分为六个步骤，如下
 
 
 
-## 7、跨平台编译(Cross complie)
+## 8、跨平台编译(Cross complie)
 
 Cross complie（跨平台编译），在中文经常称为交叉编译，个人觉得这个词比较难解，不如叫做跨平台编译。它的意思是，编译源码的可执行文件不是在当前执行编译的机器上运行，而是特定平台(Android/iOS)上运行。
 
@@ -2023,7 +2031,7 @@ Cross complie（跨平台编译），在中文经常称为交叉编译，个人�
 
 
 
-## 8、Ninja
+## 9、Ninja
 
 Ninja是小型的编译系统，它有两个特点：
 
