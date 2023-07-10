@@ -1114,7 +1114,33 @@ $ gn clean_stale [--ninja-executable=...] <out_dir>...
 
 ### (2) Target声明(Target declarations)
 
-TODO
+Target声明(Target declarations)，是GN预定义几种target类型，并提供GN工程的开发者，定义需要编译的target，包括可执行文件、静态库、动态库等。
+
+| target类型      | 作用                                                    |
+| --------------- | ------------------------------------------------------- |
+| action          | Declare a target that runs a script a single time       |
+| action_foreach  | Declare a target that runs a script over a set of files |
+| bundle_data     | [iOS/macOS] Declare a target without output             |
+| copy            | Declare a target that copies files                      |
+| create_bundle   | [iOS/macOS] Build an iOS or macOS bundle                |
+| executable      | Declare an executable target                            |
+| generated_file  | Declare a generated_file target                         |
+| group           | Declare a named group of targets                        |
+| loadable_module | Declare a loadable module target                        |
+| rust_library    | Declare a Rust library target                           |
+| rust_proc_macro | Declare a Rust procedural macro target                  |
+| shared_library  | Declare a shared library target                         |
+| source_set      | Declare a source set target                             |
+| static_library  | Declare a static library target                         |
+| target          | Declare a target with the given programmatic type       |
+
+
+
+#### source_set
+
+source_set用于定义source set类型target，表示一组需要编译的source文件，但是不会链接成静态库，这是为了性能的考虑。当source_set里的文件编译成object文件，会跳过合成静态库的过程，直接链接到最终产物中。
+
+> 目前仅支持C语言
 
 
 
@@ -1827,15 +1853,60 @@ root_gen_dir变量，表示特定toolchain编译后生成的文件夹。
 
 这里只列出常用的变量名，如下
 
-| 变量名       | 类型          | 作用                                       |
-| ------------ | ------------- | ------------------------------------------ |
-| cflags       | [string list] | Flags passed to all C compiler variants    |
-| cflags_c     | [string list] | Flags passed to the C compiler             |
-| cflags_cc    | [string list] | Flags passed to the C++ compiler           |
-| cflags_objc  | [string list] | Flags passed to the Objective C compiler   |
-| cflags_objcc | [string list] | Flags passed to the Objective C++ compiler |
-| include_dirs |               |                                            |
-| ldflags      | [string list] | Flags passed to the linker                 |
+| 变量名                       | 类型                 | 作用                                                    |
+| ---------------------------- | -------------------- | ------------------------------------------------------- |
+| aliased_deps                 | [scope]              | Set of crate-dependency pairs                           |
+| all_dependent_configs        | [label list]         | Configs to be forced on dependents                      |
+| allow_circular_includes_from | [label list]         | Permit includes from deps                               |
+| arflags                      | [string list]        | Arguments passed to static_library archiver             |
+| args                         | [string list]        | Arguments passed to an action                           |
+| asmflags                     | [string list]        | Flags passed to the assembler                           |
+| assert_no_deps               | [label pattern list] | Ensure no deps on these targets                         |
+| bridge_header                | [string]             | Path to C/Objective-C compatibility header              |
+| bundle_contents_dir          |                      | Expansion of {{bundle_contents_dir}} in create_bundle   |
+| bundle_deps_filter           | [label list]         | A list of labels that are filtered out                  |
+| bundle_executable_dir        |                      | Expansion of {{bundle_executable_dir}} in create_bundle |
+| bundle_resources_dir         |                      | Expansion of {{bundle_resources_dir}} in create_bundle  |
+| bundle_root_dir              |                      | Expansion of {{bundle_root_dir}} in create_bundle       |
+| cflags                       | [string list]        | Flags passed to all C compiler variants                 |
+| cflags_c                     | [string list]        | Flags passed to the C compiler                          |
+| cflags_cc                    | [string list]        | Flags passed to the C++ compiler                        |
+| cflags_objc                  | [string list]        | Flags passed to the Objective C compiler                |
+| cflags_objcc                 | [string list]        | Flags passed to the Objective C++ compiler              |
+| check_includes               | [boolean]            | Controls whether a target's files are checked           |
+| code_signing_args            | [string list]        | Arguments passed to code signing script                 |
+| code_signing_outputs         | [file list]          | Output files for code signing step                      |
+| code_signing_script          | [file name]          | Script for code signing                                 |
+| code_signing_sources         | [file list]          | Sources for code signing step                           |
+| complete_static_lib          | [boolean]            | Links all deps into a static library                    |
+| configs                      | [label list]         | Configs applying to this target or config               |
+| contents                     |                      | Contents to write to file                               |
+| crate_name                   | [string]             | The name for the compiled crate                         |
+| crate_root                   | [string]             | The root source file for a binary or library            |
+| crate_type                   | [string]             | The type of linkage to use on a shared_library          |
+| data                         | [file list]          | Runtime data file dependencies                          |
+| data_deps                    | [label list]         | Non-linked dependencies                                 |
+| data_keys                    | [string list]        | Keys from which to collect metadata                     |
+| defines                      | [string list]        | C preprocessor defines                                  |
+| depfile                      | [string]             | File name for input dependencies for actions            |
+| deps                         | [label list]         | Private linked dependencies                             |
+| externs                      | [scope]              | Set of Rust crate-dependency pairs                      |
+|                              |                      |                                                         |
+|                              |                      |                                                         |
+|                              |                      |                                                         |
+|                              |                      |                                                         |
+| include_dirs                 |                      |                                                         |
+| ldflags                      | [string list]        | Flags passed to the linker                              |
+|                              |                      |                                                         |
+| sources                      | [file list]          | Source files for a target                               |
+|                              |                      |                                                         |
+|                              |                      |                                                         |
+
+
+
+#### sources
+
+sources变量的值是一组文件路径。文件路径是相当于当前build file。
 
 
 
