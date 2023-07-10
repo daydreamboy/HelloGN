@@ -3,8 +3,4 @@ static_library("hello_ios_static_cpp") {
     "hello_world_impl.cpp",
     "hello_world.hpp",
   ]
-
-  # public_deps = [
-  #   "//third_party/fml:fml",
-  # ]
 }
