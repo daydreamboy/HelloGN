@@ -16,6 +16,9 @@ template("ios_toolchain") {
       forward_variables_from(invoker.toolchain_args, "*")
     }
 
+    # Note: turn on this line, if when debug GN
+    #print("python3 sdk_info.py --target-cpu $current_cpu --target-environment $target_environment --deployment-target $ios_deployment_target")
+
     _sdk_info = exec_script("//build/config/ios/scripts/sdk_info.py",
                             [
                               "--target-cpu",

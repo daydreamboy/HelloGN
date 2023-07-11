@@ -1930,9 +1930,23 @@ sources变量的值是一组文件路径。文件路径是相当于当前build f
 
 #### a.  `.gn`文件的变量
 
-##### script_executable
+`.gn`文件的变量，这里称为dotfile变量
 
-
+| dotfile变量             | 是否必选 | 作用                                                         |
+| ----------------------- | -------- | ------------------------------------------------------------ |
+| arg_file_template       | 否       |                                                              |
+| buildconfig             | 是       | 指定`BUILDCONOFIG.gn`的路径，该文件用于建立build file执行环境 |
+| check_targets           |          |                                                              |
+| no_check_targets        |          |                                                              |
+| check_system_includes   |          |                                                              |
+| exec_script_whitelist   |          |                                                              |
+| export_compile_commands |          |                                                              |
+| root                    |          |                                                              |
+| script_executable       |          | exec_script函数，会默认调用在PATH环境变量中的python。如果要使用python3，则指定`script_executable = "python3"` |
+| secondary_source        |          |                                                              |
+| default_args            |          |                                                              |
+| build_file_extension    |          |                                                              |
+| ninja_required_version  |          |                                                              |
 
 
 
@@ -1957,23 +1971,33 @@ buildargs的定义，如下
 
 
 
-### (3) Build graph and execution overview
+### (3) 构建有向图和加载文件顺序(Build graph and execution overview)
 
-GN的完整编译流，分为六个步骤，如下
+在GN工程中，存在`.gn`、`BUILDCONFIG.gn`和`BUILD.gn`这几种文件
 
-1）寻找`.gn`文件，它所在的文件夹设置为source root，并解析这个文件，确定build config文件的位置
+* `.gn`是GN的dotfile，也是GN第一个加载的文件
+* `BUILDCONFIG.gn`是`.gn`中指定路径的，它是编译配置的入口文件，因此带CONFG
+* `BUILD.gn`，这个文件可能有很多个，它有两种角色：
+  * 在工程根文件下的`BUILD.gn`，是用户设置编译参数的入口文件，里面通过标号引用等依赖其他`BUILD.gn`
+  * 在`BUILDCONFIG.gn`中，里面通过标号引用等依赖其他`BUILD.gn`，这些`BUILD.gn`文件是提供编译配置的文件
 
-2）执行build config文件，设置全局变量和默认toolchain名字。在这个build config文件中的任意argument、variable和default，都是对所有文件可见的
+可见在GN执行时，存在两个有向图：一个是`.gn`为根节点，一个是同级下的`BUILD.gn`文件
 
-3）加载//BUILD.gn文件，它位于source root下面
+GN加载buildfile的过程，分为六个步骤[^12]，如下
 
-4）递归地执行//BUILD.gn中的rule，如果有依赖关系，则加载其他文件夹的BUILD.gn文件。如果没有其他BUILD.gn文件，则根据`.gn`文件中secondary_source字段再搜索
+1）寻找`.gn`文件，它所在的文件夹设置为source root，并解析这个文件，确定`BUILDCONFIG.gn`文件的位置
+
+2）执行`BUILDCONFIG.gn`文件，设置全局变量和默认toolchain名字。在这个`BUILDCONFIG.gn`文件中的任意argument、variable和default，都是对所有文件可见的
+
+3）加载//`BUILD.gn`文件，它位于source root下面
+
+4）递归地执行//`BUILD.gn`中的内容，如果有依赖关系，则加载其他文件夹下的`BUILD.gn`文件。如果没有找到特定的`BUILD.gn`文件，则根据`.gn`文件中secondary_source字段再搜索一次
 
 5）每当一个target的依赖全部处理完，则写入`.ninja`文件到out文件夹
 
 6）当所有target处理完，则写入`build.ninja`文件到out文件夹
 
-根据上面的描述，GN的编译流实际是根据//BUILD.gn中设置的target及其依赖，形成一个有向无循环图。
+根据上面的描述，GN的执行过程实际是根据两个根节点`.gn`（步骤1）和`//BUILD.gn`（步骤2），来解析target及其依赖，形成两类有向无循环图：设置编译配置、使用编译配置。
 
 
 
@@ -2025,9 +2049,25 @@ Cross complie（跨平台编译），在中文经常称为交叉编译，个人�
 
 ### (1) iOS系统
 
+`sdk_info.py`脚本
+
+```shell
+$ python3 sdk_info.py 
+{"compiler": "com.apple.compilers.llvm.clang.1_0", "is_simulator": true, "macos_build": "22E252", "platform": "iphonesimulator", "platform_name": "iPhoneSimulator", "sdk": "iphonesimulator16.4", "sdk_build": "20E238", "sdk_path": "/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator16.4.sdk", "toolchain_path": "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain", "sdk_version": "16.4", "target": "x86_64-apple-ios16.4-simulator", "xcode_build": "14E222b", "xcode_version": "1430"}
+
+$ python3 sdk_info.py --target-cpu arm64 --target-environment device --deployment-target 11.0
+{"compiler": "com.apple.compilers.llvm.clang.1_0", "is_simulator": false, "macos_build": "22E252", "platform": "iphoneos", "platform_name": "iPhoneOS", "sdk": "iphoneos16.4", "sdk_build": "20E238", "sdk_path": "/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS16.4.sdk", "toolchain_path": "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain", "sdk_version": "16.4", "target": "arm64-apple-ios11.0", "xcode_build": "14E222b", "xcode_version": "1430"}%             
+```
 
 
 
+#### 编译静态库
+
+TODO
+
+
+
+> 示例工程，见BuildStaticCPPLib-iOS
 
 
 
