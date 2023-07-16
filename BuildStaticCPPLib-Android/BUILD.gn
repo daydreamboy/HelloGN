@@ -1,0 +1,6 @@
+shared_library("hello_android_shared_library_cpp") {
+  sources = [
+    "hello_world_impl.cpp",
+    "hello_world.hpp",
+  ]
+}

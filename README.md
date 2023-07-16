@@ -2047,7 +2047,7 @@ Cross complie（跨平台编译），在中文经常称为交叉编译，个人�
 
 
 
-### (1) iOS系统
+### (1) iOS平台
 
 `sdk_info.py`脚本
 
@@ -2068,6 +2068,16 @@ TODO
 
 
 > 示例工程，见BuildStaticCPPLib-iOS
+
+
+
+
+
+### (2) Android平台
+
+#### 编译动态库
+
+
 
 
 
