@@ -1,6 +1,5 @@
-# Copyright 2019 The Chromium Authors. All rights reserved.
-# Use of this source code is governed by a BSD-style license that can be
-# found in the LICENSE file.
+#!/usr/bin/python3
+# -*- coding: utf-8 -*-
 
 """Collects information about the SDK and return them as JSON file."""
 
@@ -10,6 +9,7 @@ import os
 import re
 import subprocess
 import sys
+from distutils.version import LooseVersion
 
 # Patterns used to extract the Xcode version and build version.
 XCODE_VERSION_PATTERN = re.compile(r'Xcode (\d+)\.(\d+)')
@@ -33,8 +33,8 @@ def GetAppleCpuName(target_cpu):
 def GetPlatform(target_environment):
   """Returns the platform for |target_environment|."""
   return {
-      'simulator': 'iphonesimulator',
-      'device': 'iphoneos'
+      'simulator': 'android',
+      'device': 'android'
   }[target_environment]
 
 
@@ -70,9 +70,61 @@ def ExtractXcodeInfo():
   return version, build
 
 
-def ExtractSDKInfo(info, sdk):
+def ExtractNDKInfo(info):
   """Extract information about the SDK."""
-  return GetCommandOutput(['xcrun', '--sdk', sdk, '--show-sdk-' + info]).strip()
+  # Step1: check ANDROID_NDK_HOME first
+  ndk_path = os.environ.get('ANDROID_NDK_HOME')
+  if ndk_path:
+    return ndk_path
+
+  # Step2: check AndroidStudio ndk
+  android_studo_ndk = os.path.join(os.path.expanduser("~"), "Library/Android/sdk/ndk/")
+  if not os.path.isdir(android_studo_ndk):
+      return ""
+  
+  contents = os.listdir(android_studo_ndk)
+  # Get a list of all subdirectories in the folder
+  subdirs = [d for d in contents if os.path.isdir(os.path.join(android_studo_ndk, d))]
+
+  # Find the directory with the largest version number
+  max_version_dir = ""
+  max_version = LooseVersion("0.0.0")
+  for subdir in subdirs:
+      try:
+          version = LooseVersion(subdir)
+          if version > max_version:
+              max_version = version
+              max_version_dir = subdir
+      except ValueError:
+          pass
+
+  # Print the name of the directory with the largest version number
+  if not max_version_dir:
+      return ""
+
+  if info == "version":
+      return max_version_dir
+
+  if info == "path":
+    ndk_path = os.path.join(android_studo_ndk, max_version_dir)
+    return ndk_path
+
+  if info == "toolchain":
+    toolchain_path = os.path.join(android_studo_ndk, max_version_dir, "toolchains")
+    if os.path.isdir(toolchain_path):
+      return toolchain_path
+    
+  if info == "clang_path":
+    clang_path = os.path.join(android_studo_ndk, max_version_dir, "toolchains/llvm/prebuilt/darwin-x86_64/bin/clang")
+    if os.path.isfile(clang_path):
+      return clang_path
+    
+  if info == "clangcpp_path":
+    clangcpp_path = os.path.join(android_studo_ndk, max_version_dir, "toolchains/llvm/prebuilt/darwin-x86_64/bin/clang++")
+    if os.path.isfile(clangcpp_path):
+      return clangcpp_path
+
+  return ""
 
 
 def GetDeveloperDir():
@@ -83,31 +135,24 @@ def GetDeveloperDir():
 def GetSDKInfoForCpu(target_cpu, environment, sdk_version, deployment_target):
   """Returns a dictionary with information about the SDK."""
   platform = GetPlatform(environment)
-  sdk_version = sdk_version or ExtractSDKInfo('version', platform)
+  sdk_version = sdk_version or ExtractNDKInfo('version')
+
   deployment_target = deployment_target or sdk_version
 
-  target = target_cpu + '-apple-ios' + deployment_target
-  if environment == 'simulator':
-    target = target + '-simulator'
-
-  xcode_version, xcode_build = ExtractXcodeInfo()
-  effective_sdk = platform + sdk_version
+  target = target_cpu + '-none-linux-android' + deployment_target
 
   sdk_info = {}
-  sdk_info['compiler'] = 'com.apple.compilers.llvm.clang.1_0'
+  # sdk_info['compiler'] = 'com.apple.compilers.llvm.clang.1_0'
   sdk_info['is_simulator'] = environment == 'simulator'
   sdk_info['macos_build'] = ExtractOSVersion()
   sdk_info['platform'] = platform
   sdk_info['platform_name'] = GetPlaformDisplayName(environment)
-  sdk_info['sdk'] = effective_sdk
-  sdk_info['sdk_build'] = ExtractSDKInfo('build-version', effective_sdk)
-  sdk_info['sdk_path'] = ExtractSDKInfo('path', effective_sdk)
-  sdk_info['toolchain_path'] = os.path.join(
-      GetDeveloperDir(), 'Toolchains/XcodeDefault.xctoolchain')
-  sdk_info['sdk_version'] = sdk_version
+  sdk_info['ndk_path'] = ExtractNDKInfo('path')
+  sdk_info['toolchain_path'] = ExtractNDKInfo('toolchain')
+  sdk_info['ndk_version'] = sdk_version
   sdk_info['target'] = target
-  sdk_info['xcode_build'] = xcode_build
-  sdk_info['xcode_version'] = xcode_version
+  sdk_info['clang_path'] = ExtractNDKInfo('clang_path')
+  sdk_info['clangcpp_path'] = ExtractNDKInfo('clangcpp_path')
 
   return sdk_info
 
@@ -132,8 +177,8 @@ def ParseArgs(argv):
       '-s', '--sdk-version',
       help='version of the sdk')
   parser.add_argument(
-      '-d', '--deployment-target',
-      help='iOS deployment target')
+      '-d', '--min-sdk-version',
+      help='Android deployment target min version')
   parser.add_argument(
       '-o', '--output', default='-',
       help='path of the output file to create; - means stdout')
@@ -146,7 +191,7 @@ def main(argv):
 
   sdk_info = GetSDKInfoForCpu(
       GetAppleCpuName(args.target_cpu), args.target_environment,
-      args.sdk_version, args.deployment_target)
+      args.sdk_version, args.min_sdk_version)
 
   if args.output == '-':
     sys.stdout.write(json.dumps(sdk_info))

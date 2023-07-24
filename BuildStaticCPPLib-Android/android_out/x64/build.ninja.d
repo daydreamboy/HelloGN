@@ -1,0 +1,1 @@
+build.ninja.stamp: ../../.gn ../../BUILD.gn ./args.gn ../../build/BUILD.gn ../../build/BUILDCONFIG.gn ../../build/config/android/deployment_target.gni ../../build/config/android/scripts/sdk_info.py ../../build/toolchain/android/BUILD.gn

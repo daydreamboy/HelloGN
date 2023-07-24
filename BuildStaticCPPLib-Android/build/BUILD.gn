@@ -1,68 +1,66 @@
-import("//build/config/ios/deployment_target.gni")
-
-# Note: define a config object named "compiler"
-config("compiler") {
-  configs = [
-    ":include_dirs",
-    ":cpp_standard",
-    ":objc_use_arc",
-    ":objc_abi_version",
-  ]
-  cflags = [ "-g" ]
-  swiftflags = [ "-g" ]
-}
-
-config("shared_binary") {
-  if (current_os == "ios" || current_os == "mac") {
+if (current_os == "ios" || current_os == "mac") {
+  # Note: define a config object named "compiler"
+  config("compiler") {
     configs = [
-      ":rpath_config",
-      ":swift_libdir",
+      ":include_dirs",
+      ":cpp_standard",
+      ":objc_use_arc",
+      ":objc_abi_version",
+    ]
+    cflags = [ "-g" ]
+    swiftflags = [ "-g" ]
+  }
+
+  config("shared_binary") {
+    if (current_os == "ios" || current_os == "mac") {
+      configs = [
+        ":rpath_config",
+        ":swift_libdir",
+      ]
+    }
+  }
+
+  config("objc_abi_version") {
+    cflags_objc = [ "-fobjc-abi-version=2" ]
+    cflags_objcc = cflags_objc
+    ldflags = [
+      "-Xlinker",
+      "-objc_abi_version",
+      "-Xlinker",
+      "2",
     ]
   }
-}
 
-config("objc_abi_version") {
-  cflags_objc = [ "-fobjc-abi-version=2" ]
-  cflags_objcc = cflags_objc
-  ldflags = [
-    "-Xlinker",
-    "-objc_abi_version",
-    "-Xlinker",
-    "2",
-  ]
-}
+  config("include_dirs") {
+    include_dirs = [
+      "//",
+      # Note: the predefined variable, the gen dir for the toolchain
+      root_gen_dir,
+    ]
+  }
 
-config("include_dirs") {
-  include_dirs = [
-    "//",
-    # Note: the predefined variable, the gen dir for the toolchain
-    root_gen_dir,
-  ]
-}
+  config("objc_use_arc") {
+    # Note: for Objective-C compiler
+    cflags_objc = [
+      "-fobjc-arc",
+      "-fobjc-weak",
+    ]
+    # Note: for Objective-C++ compiler
+    cflags_objcc = cflags_objc
+  }
 
-config("objc_use_arc") {
-  # Note: for Objective-C compiler
-  cflags_objc = [
-    "-fobjc-arc",
-    "-fobjc-weak",
-  ]
-  # Note: for Objective-C++ compiler
-  cflags_objcc = cflags_objc
-}
+  config("cpp_standard") {
+    # Note: for C compiler
+    cflags_c = [ "--std=c11" ]
+    # Note: for C++ compiler
+    cflags_cc = [
+      "--std=c++17",
+      "--stdlib=libc++",
+    ]
+    # Note: for the linker
+    ldflags = [ "--stdlib=libc++" ]
+  }
 
-config("cpp_standard") {
-  # Note: for C compiler
-  cflags_c = [ "--std=c11" ]
-  # Note: for C++ compiler
-  cflags_cc = [
-    "--std=c++17",
-    "--stdlib=libc++",
-  ]
-  # Note: for the linker
-  ldflags = [ "--stdlib=libc++" ]
-}
-
-if (current_os == "ios" || current_os == "mac") {
   config("rpath_config") {
     ldflags = [
       "-Xlinker",
@@ -103,5 +101,44 @@ if (current_os == "ios" || current_os == "mac") {
       "${_sdk_info.sdk_path}/usr/lib/swift",
       _system_lib_swift_dir,
     ]
+  }
+}
+else if (current_os == "android" || current_os == "linux") {
+  # Note: define a config object named "compiler"
+  config("compiler") {
+    configs = [
+      ":include_dirs",
+      ":cpp_standard",
+    ]
+    cflags = [ "-g" ]
+  }
+
+  config("shared_binary") {
+    if (current_os == "ios" || current_os == "mac") {
+      configs = [
+        ":rpath_config",
+        ":swift_libdir",
+      ]
+    }
+  }
+
+  config("include_dirs") {
+    include_dirs = [
+      "//",
+      # Note: the predefined variable, the gen dir for the toolchain
+      root_gen_dir,
+    ]
+  }
+
+  config("cpp_standard") {
+    # Note: for C compiler
+    cflags_c = [ "--std=c11" ]
+    # Note: for C++ compiler
+    cflags_cc = [
+      "--std=c++17",
+      "--stdlib=libc++",
+    ]
+    # Note: for the linker
+    ldflags = [ "--stdlib=libc++" ]
   }
 }

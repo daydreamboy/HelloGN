@@ -1,7 +1,3 @@
 declare_args() {
-  # Maximum deployment target. Automatically detected by sdk_info.py but
-  # needs to be specified to a version < 11.0 if targetting 32-bit archs.
-  #
-  # Note: create LC_VERSION_MIN_IPHONEOS in .o file
-  ios_deployment_target = "11.0"
+  min_sdk_version = "33"
 }

@@ -1,4 +1,4 @@
-#import("//build/config/ios/deployment_target.gni")
+import("//build/config/android/deployment_target.gni")
 
 declare_args() {
   # Configure whether whole module optimization is enabled when compiling
@@ -19,21 +19,19 @@ template("android_toolchain") {
     # Note: turn on this line, if when debug GN
     #print("python3 sdk_info.py --target-cpu $current_cpu --target-environment $target_environment --deployment-target $ios_deployment_target")
 
-    _sdk_info = exec_script("//build/config/ios/scripts/sdk_info.py",
+    _sdk_info = exec_script("//build/config/android/scripts/sdk_info.py",
                             [
                               "--target-cpu",
                               current_cpu,
                               "--target-environment",
                               target_environment,
-                              "--deployment-target",
-                              ios_deployment_target,
+                              "--min-sdk-version",
+                              min_sdk_version,
                             ],
                             "json")
 
-    cc = "clang -target ${_sdk_info.target} -isysroot ${_sdk_info.sdk_path}"
-    cxx = "clang++ -target ${_sdk_info.target} -isysroot ${_sdk_info.sdk_path}"
-
-    swiftmodule_switch = "-Wl,-add_ast_path,"
+    cc = "${_sdk_info.clang_path} --target=${_sdk_info.target} --sysroot=${_sdk_info.toolchain_path}/llvm/prebuilt/darwin-x86_64/sysroot -MD -MT"
+    cxx = "${_sdk_info.clangcpp_path} --target=${_sdk_info.target} --sysroot=${_sdk_info.toolchain_path}/llvm/prebuilt/darwin-x86_64/sysroot -MD -MT"
 
     tool("link") {
       output = "{{output_dir}}/{{target_output_name}}{{output_extension}}"
@@ -54,12 +52,17 @@ template("android_toolchain") {
       rspfile = dylib + ".rsp"
       rspfile_content = "{{inputs_newline}}"
 
+      #LANGUAGE_COMPILE_FLAGS = "-g -DANDROID -fdata-sections -ffunction-sections -funwind-tables -fstack-protector-strong -no-canonical-prefixes -D_FORTIFY_SOURCE=2 -Wformat -Werror=format-security   -fno-limit-debug-info"
+
+      LINK_FLAGS = "-static-libstdc++ -Wl,--build-id=sha1 -Wl,--fatal-warnings -Wl,--gc-sections -Wl,--no-undefined -Qunused-arguments"
+      LINK_LIBRARIES = "/Users/wesley_chen/Library/Android/sdk/ndk/25.1.8937393/toolchains/llvm/prebuilt/darwin-x86_64/sysroot/usr/lib/x86_64-linux-android/33/liblog.so  -latomic -lm"
+
       outputs = [ dylib ]
-      command = "$cxx -dynamiclib {{ldflags}} -o $dylib -Wl,-filelist,$rspfile {{libs}} {{solibs}} {{frameworks}} {{swiftmodules}}"
+      command = "$cxx {{ldflags}} $LINK_FLAGS -fPIC -shared -o $dylib {{inputs}} $LINK_LIBRARIES"
       description = "SOLINK {{output}}"
 
       default_output_dir = "{{root_out_dir}}"
-      default_output_extension = ".dylib"
+      default_output_extension = ".so"
       output_prefix = "lib"
     }
 
