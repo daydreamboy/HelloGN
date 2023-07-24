@@ -1,30 +1,48 @@
 set -x
 set -e
 
-libName="libhello_android_static_cpp.a"
+TARGET_OS="android"
+OUT_HOME="android_out"
 
+# Note: target_cpu = ${ABI}, Android ABI, see https://developer.android.com/ndk/guides/abis
 if [[ $1 = "device" ]]; then
-  gn gen android_out/arm64 --args='target_os="android" target_cpu="arm64" target_environment="device"'
-  ninja -C android_out/arm64
+  ARCH="arm64-v8a"
+
+  gn gen ${OUT_HOME}/${ARCH} --args="target_os=\"${TARGET_OS}\" target_cpu=\"${ARCH}\" target_environment=\"device\""
+  ninja -C ${OUT_HOME}/${ARCH}
 elif [[ $1 = "simulator" ]]; then
-  gn gen android_out/x64 --args='target_os="android" target_cpu="x64" target_environment="simulator"'
-  ninja -C android_out/x64
+  ARCH="x86_64"
+
+  gn gen ${OUT_HOME}/${ARCH} --args="target_os=\"${TARGET_OS}\" target_cpu=\"${ARCH}\" target_environment=\"device\""
+  ninja -C ${OUT_HOME}/${ARCH}
 elif [[ $1 = "all" ]]; then
-  gn gen android_out/arm64 --args='target_os="android" target_cpu="arm64" target_environment="device"'
-  ninja -C android_out/arm64
+  # Step1 
+  ARCH="arm64-v8a"
 
-  gn gen android_out/x64 --args='target_os="android" target_cpu="x64" target_environment="simulator"'
-  ninja -C android_out/x64
+  gn gen ${OUT_HOME}/${ARCH} --args="target_os=\"${TARGET_OS}\" target_cpu=\"${ARCH}\" target_environment=\"device\""
+  ninja -C ${OUT_HOME}/${ARCH}
 
-  mkdir -p ./android_out/all/obj
-  lipo -create ./android_out/arm64/obj/${libName} ./android_out/x64/obj/${libName} -o ./android_out/all/obj/${libName}
-  echo "create static library ($1) successfully!"
+  # Step2
+  ARCH="x86_64"
+
+  gn gen ${OUT_HOME}/${ARCH} --args="target_os=\"${TARGET_OS}\" target_cpu=\"${ARCH}\" target_environment=\"device\""
+  ninja -C ${OUT_HOME}/${ARCH}
 elif [[ $1 = "clean" ]]; then
   if [[ -x "$(command -v trash)" ]]; then
     trash ./android_out
   else
     rm -rf ./android_out
   fi
+elif [[ $1 = "armeabi-v7a" ]]; then
+  ARCH="armeabi-v7a"
+
+  gn gen ${OUT_HOME}/${ARCH} --args="target_os=\"${TARGET_OS}\" target_cpu=\"${ARCH}\" target_environment=\"device\""
+  ninja -C ${OUT_HOME}/${ARCH}
+elif [[ $1 = "x86" ]]; then
+  ARCH="x86"
+
+  gn gen ${OUT_HOME}/${ARCH} --args="target_os=\"${TARGET_OS}\" target_cpu=\"${ARCH}\" target_environment=\"device\""
+  ninja -C ${OUT_HOME}/${ARCH}
 else
   echo "Must support a parameter"
 fi

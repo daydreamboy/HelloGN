@@ -21,12 +21,14 @@ def GetCommandOutput(command):
   return subprocess.check_output(command, encoding='utf-8')
 
 
-def GetAppleCpuName(target_cpu):
+# Note: Android ABI, see https://developer.android.com/ndk/guides/abis
+def GetAndroidABIName(target_cpu):
   """Returns the name of the |target_cpu| using Apple's convention."""
   return {
-      'x64': 'x86_64',
-      'arm': 'armv7',
-      'x86': 'i386'
+      'x86_64': 'x86_64',
+      'arm64-v8a': 'aarch64',
+      'x86': 'i686',
+      'armeabi-v7a': 'armv7',
   }.get(target_cpu, target_cpu)
 
 
@@ -41,8 +43,8 @@ def GetPlatform(target_environment):
 def GetPlaformDisplayName(target_environment):
   """Returns the platform display name for |target_environment|."""
   return {
-      'simulator': 'iPhoneSimulator',
-      'device': 'iPhoneOS'
+      'simulator': 'AndroidSimulator',
+      'device': 'AndroidOS'
   }[target_environment]
 
 
@@ -132,6 +134,23 @@ def GetDeveloperDir():
   return GetCommandOutput(['xcode-select', '-print-path']).strip()
 
 
+# Note: The triple has the general format <arch><sub>-<vendor>-<sys>-<abi>, where:
+# arch = x86, arm, thumb, mips, etc.
+# sub = for ex. on ARM: v5, v6m, v7a, v7m, etc.
+# vendor = pc, apple, nvidia, ibm, etc.
+# sys = none, linux, win32, darwin, cuda, etc.
+# abi = eabi, gnu, android, macho, elf, etc.
+# @see https://stackoverflow.com/a/40890321
+# 
+# Solution: use cmake to compile, and check its ninja file to find the correct target triple name
+def GetTargetTripe(target_cpu, deployment_target):
+  """Returns the target triple name"""
+  if target_cpu == "armv7":
+    return target_cpu + '-none-linux-androideabi' + deployment_target
+  else:
+    return target_cpu + '-none-linux-android' + deployment_target
+
+
 def GetSDKInfoForCpu(target_cpu, environment, sdk_version, deployment_target):
   """Returns a dictionary with information about the SDK."""
   platform = GetPlatform(environment)
@@ -139,7 +158,7 @@ def GetSDKInfoForCpu(target_cpu, environment, sdk_version, deployment_target):
 
   deployment_target = deployment_target or sdk_version
 
-  target = target_cpu + '-none-linux-android' + deployment_target
+  target = GetTargetTripe(target_cpu, deployment_target)
 
   sdk_info = {}
   # sdk_info['compiler'] = 'com.apple.compilers.llvm.clang.1_0'
@@ -164,8 +183,8 @@ def ParseArgs(argv):
       formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 
   parser.add_argument(
-      '-t', '--target-cpu', default='x64',
-      choices=('x86', 'x64', 'arm', 'arm64'),
+      '-t', '--target-cpu', default='x86_64',
+      choices=('x86', 'x86_64', 'armeabi-v7a', 'arm64-v8a'),
       help='target cpu')
   parser.add_argument(
       '-e',
@@ -189,9 +208,7 @@ def ParseArgs(argv):
 def main(argv):
   args = ParseArgs(argv)
 
-  sdk_info = GetSDKInfoForCpu(
-      GetAppleCpuName(args.target_cpu), args.target_environment,
-      args.sdk_version, args.min_sdk_version)
+  sdk_info = GetSDKInfoForCpu(GetAndroidABIName(args.target_cpu), args.target_environment, args.sdk_version, args.min_sdk_version)
 
   if args.output == '-':
     sys.stdout.write(json.dumps(sdk_info))

@@ -104,25 +104,25 @@ android_toolchain("clang_x86") {
 }
 
 # Note: use `android_toolchain` template to define `clang_x64` toolchain
-android_toolchain("clang_x64") {
+android_toolchain("clang_x86_64") {
   toolchain_args = {
-    current_cpu = "x64"
+    current_cpu = "x86_64"
     current_os = "android"
   }
 }
 
 # Note: use `android_toolchain` template to define `clang_arm` toolchain
-android_toolchain("clang_arm") {
+android_toolchain("clang_armeabi-v7a") {
   toolchain_args = {
-    current_cpu = "arm"
+    current_cpu = "armeabi-v7a"
     current_os = "android"
   }
 }
 
 # Note: use `android_toolchain` template to define `clang_arm64` toolchain
-android_toolchain("clang_arm64") {
+android_toolchain("clang_arm64-v8a") {
   toolchain_args = {
-    current_cpu = "arm64"
+    current_cpu = "arm64-v8a"
     current_os = "android"
   }
 }
