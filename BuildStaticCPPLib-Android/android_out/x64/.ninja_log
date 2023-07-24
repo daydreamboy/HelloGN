@@ -1,4 +1,3 @@
 # ninja log v5
-1	5521	1690023522016215382	obj/hello_android_shared_library_cpp/hello_world_impl.o	de63404ec86aa518
-2	627	1690024525715643267	obj/hello_android_shared_library_cpp/hello_world_impl.o	5fde65c40b8e99b5
-2	836	1690027088842190012	obj/hello_android_shared_library_cpp/hello_world_impl.o	c20b5df2194cdea
+1	928	1690170241633463914	obj/hello_android_shared_library_cpp/hello_world_impl.o	1fc34f50533cfb4
+929	1481	1690170242185783831	libhello_android_shared_library_cpp.so	d0a4b9027ea07e3c

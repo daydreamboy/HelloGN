@@ -19,6 +19,12 @@ elif [[ $1 = "all" ]]; then
   mkdir -p ./android_out/all/obj
   lipo -create ./android_out/arm64/obj/${libName} ./android_out/x64/obj/${libName} -o ./android_out/all/obj/${libName}
   echo "create static library ($1) successfully!"
+elif [[ $1 = "clean" ]]; then
+  if [[ -x "$(command -v trash)" ]]; then
+    trash ./android_out
+  else
+    rm -rf ./android_out
+  fi
 else
   echo "Must support a parameter"
 fi
