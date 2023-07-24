@@ -1,11 +1,5 @@
 import("//build/config/android/deployment_target.gni")
 
-declare_args() {
-  # Configure whether whole module optimization is enabled when compiling
-  # swift modules.
-  swift_whole_module_optimization = true
-}
-
 # Note: define a template named "android_toolchain"
 template("android_toolchain") {
   toolchain(target_name) {
@@ -39,7 +33,7 @@ template("android_toolchain") {
       rspfile_content = "{{inputs_newline}}"
 
       outputs = [ output ]
-      command = "$cxx {{ldflags}} -o $output -Wl,-filelist,$rspfile {{libs}} {{solibs}} {{frameworks}} {{swiftmodules}}"
+      command = "$cxx {{ldflags}} -o $output -Wl,-filelist,$rspfile {{libs}} {{solibs}}"
       description = "LINK {{output}}"
 
       default_output_dir = "{{root_out_dir}}"

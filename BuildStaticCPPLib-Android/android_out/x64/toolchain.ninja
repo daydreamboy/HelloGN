@@ -7,7 +7,7 @@ rule solink
   rspfile = ${output_dir}/${target_output_name}${output_extension}.rsp
   rspfile_content = ${in_newline}
 rule link
-  command = /Users/wesley_chen/Library/Android/sdk/ndk/25.1.8937393/toolchains/llvm/prebuilt/darwin-x86_64/bin/clang++ --target=x86_64-none-linux-android33 --sysroot=/Users/wesley_chen/Library/Android/sdk/ndk/25.1.8937393/toolchains/llvm/prebuilt/darwin-x86_64/sysroot ${ldflags} -o ${output_dir}/${target_output_name}${output_extension} -Wl,-filelist,${output_dir}/${target_output_name}${output_extension}.rsp ${libs} ${solibs} ${frameworks} ${swiftmodules}
+  command = /Users/wesley_chen/Library/Android/sdk/ndk/25.1.8937393/toolchains/llvm/prebuilt/darwin-x86_64/bin/clang++ --target=x86_64-none-linux-android33 --sysroot=/Users/wesley_chen/Library/Android/sdk/ndk/25.1.8937393/toolchains/llvm/prebuilt/darwin-x86_64/sysroot ${ldflags} -o ${output_dir}/${target_output_name}${output_extension} -Wl,-filelist,${output_dir}/${target_output_name}${output_extension}.rsp ${libs} ${solibs}
   description = LINK ${out}
   rspfile = ${output_dir}/${target_output_name}${output_extension}.rsp
   rspfile_content = ${in_newline}
