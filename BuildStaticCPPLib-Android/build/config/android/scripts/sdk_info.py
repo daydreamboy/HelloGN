@@ -125,6 +125,11 @@ def ExtractNDKInfo(info):
     clangcpp_path = os.path.join(android_studo_ndk, max_version_dir, "toolchains/llvm/prebuilt/darwin-x86_64/bin/clang++")
     if os.path.isfile(clangcpp_path):
       return clangcpp_path
+    
+  if info == "ar_path":
+    ar_path = os.path.join(android_studo_ndk, max_version_dir, "toolchains/llvm/prebuilt/darwin-x86_64/bin/llvm-ar")
+    if os.path.isfile(ar_path):
+      return ar_path
 
   return ""
 
@@ -166,12 +171,13 @@ def GetSDKInfoForCpu(target_cpu, environment, sdk_version, deployment_target):
   sdk_info['macos_build'] = ExtractOSVersion()
   sdk_info['platform'] = platform
   sdk_info['platform_name'] = GetPlaformDisplayName(environment)
-  sdk_info['ndk_path'] = ExtractNDKInfo('path')
-  sdk_info['toolchain_path'] = ExtractNDKInfo('toolchain')
   sdk_info['ndk_version'] = sdk_version
   sdk_info['target'] = target
+  sdk_info['ndk_path'] = ExtractNDKInfo('path')
+  sdk_info['toolchain_path'] = ExtractNDKInfo('toolchain')
   sdk_info['clang_path'] = ExtractNDKInfo('clang_path')
   sdk_info['clangcpp_path'] = ExtractNDKInfo('clangcpp_path')
+  sdk_info['ar_path'] = ExtractNDKInfo('ar_path')
 
   return sdk_info
 

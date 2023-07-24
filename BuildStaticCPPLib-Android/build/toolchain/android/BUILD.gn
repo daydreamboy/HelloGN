@@ -26,6 +26,7 @@ template("android_toolchain") {
 
     cc = "${_sdk_info.clang_path} --target=${_sdk_info.target} --sysroot=${_sdk_info.toolchain_path}/llvm/prebuilt/darwin-x86_64/sysroot"
     cxx = "${_sdk_info.clangcpp_path} --target=${_sdk_info.target} --sysroot=${_sdk_info.toolchain_path}/llvm/prebuilt/darwin-x86_64/sysroot"
+    ar = "${_sdk_info.ar_path} qc"
 
     tool("link") {
       output = "{{output_dir}}/{{target_output_name}}{{output_extension}}"
@@ -60,7 +61,7 @@ template("android_toolchain") {
 
     tool("alink") {
       command = "rm -f {{output}} && ar rcs {{output}} {{inputs}}"
-      description = "AR {{target_output_name}}{{output_extension}}"
+      description = "$ar {{target_output_name}}{{output_extension}}"
 
       outputs =
           [ "{{target_out_dir}}/{{target_output_name}}{{output_extension}}" ]
